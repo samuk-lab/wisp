@@ -1,0 +1,15 @@
+name: sprite
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python>=3.11,<3.13
+  - pip
+  - mosdepth
+  - bedtools
+  - samtools
+  - pytest
+  - pytest-cov
+  - ruff
+  - mypy
+  - build

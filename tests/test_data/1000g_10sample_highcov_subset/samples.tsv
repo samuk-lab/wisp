@@ -1,0 +1,11 @@
+sample_id	population	alignment
+HG00096	GBR	tests/test_data/1000g_10sample_highcov_subset/bams/HG00096.bam
+HG00097	GBR	tests/test_data/1000g_10sample_highcov_subset/bams/HG00097.bam
+HG00099	GBR	tests/test_data/1000g_10sample_highcov_subset/bams/HG00099.bam
+HG00100	GBR	tests/test_data/1000g_10sample_highcov_subset/bams/HG00100.bam
+HG00101	GBR	tests/test_data/1000g_10sample_highcov_subset/bams/HG00101.bam
+NA18486	YRI	tests/test_data/1000g_10sample_highcov_subset/bams/NA18486.bam
+NA18489	YRI	tests/test_data/1000g_10sample_highcov_subset/bams/NA18489.bam
+NA18498	YRI	tests/test_data/1000g_10sample_highcov_subset/bams/NA18498.bam
+NA18499	YRI	tests/test_data/1000g_10sample_highcov_subset/bams/NA18499.bam
+NA18501	YRI	tests/test_data/1000g_10sample_highcov_subset/bams/NA18501.bam

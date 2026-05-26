@@ -1,0 +1,11 @@
+sample_id	population	source_cram
+HG00096	GBR	https://ftp.sra.ebi.ac.uk/vol1/run/ERR324/ERR3240114/HG00096.final.cram
+HG00097	GBR	https://ftp.sra.ebi.ac.uk/vol1/run/ERR324/ERR3240115/HG00097.final.cram
+HG00099	GBR	https://ftp.sra.ebi.ac.uk/vol1/run/ERR324/ERR3240116/HG00099.final.cram
+HG00100	GBR	https://ftp.sra.ebi.ac.uk/vol1/run/ERR324/ERR3240117/HG00100.final.cram
+HG00101	GBR	https://ftp.sra.ebi.ac.uk/vol1/run/ERR324/ERR3240118/HG00101.final.cram
+NA18486	YRI	https://ftp.sra.ebi.ac.uk/vol1/run/ERR323/ERR3239335/NA18486.final.cram
+NA18489	YRI	https://ftp.sra.ebi.ac.uk/vol1/run/ERR323/ERR3239336/NA18489.final.cram
+NA18498	YRI	https://ftp.sra.ebi.ac.uk/vol1/run/ERR323/ERR3239337/NA18498.final.cram
+NA18499	YRI	https://ftp.sra.ebi.ac.uk/vol1/run/ERR323/ERR3239338/NA18499.final.cram
+NA18501	YRI	https://ftp.sra.ebi.ac.uk/vol1/run/ERR323/ERR3239339/NA18501.final.cram
