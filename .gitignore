@@ -2,6 +2,7 @@
 
 .git.broken
 .claude
+src/sprite_mask/__pycache__/
 __pycache__/
 *.py[cod]
 

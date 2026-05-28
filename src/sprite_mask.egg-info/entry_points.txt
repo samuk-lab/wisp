@@ -1,3 +1,0 @@
-[console_scripts]
-sprite = sprite_mask.cli:main
-sprite-mask = sprite_mask.cli:main
