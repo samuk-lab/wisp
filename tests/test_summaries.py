@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 from pathlib import Path
 
 import pytest
@@ -38,6 +39,25 @@ def test_summarize_population_count_bed_accepts_uncommented_header(
         "chr1\t0\t10\t1\n"
         "chr1\t10\t15\t0\n"
     )
+    out = tmp_path / "summary.tsv"
+
+    summarize_population_count_bed(bed, out)
+
+    assert out.read_text() == (
+        "population\tpassing_samples\tsites\n"
+        "popA\t0\t5\n"
+        "popA\t1\t10\n"
+    )
+
+
+def test_summarize_population_count_bed_accepts_gzipped_input(tmp_path: Path) -> None:
+    bed = tmp_path / "population_counts.bed.gz"
+    with gzip.open(bed, "wt") as handle:
+        handle.write(
+            "#chrom\tstart\tend\tpopA\n"
+            "chr1\t0\t10\t1\n"
+            "chr1\t10\t15\t0\n"
+        )
     out = tmp_path / "summary.tsv"
 
     summarize_population_count_bed(bed, out)

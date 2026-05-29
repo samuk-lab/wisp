@@ -4,6 +4,18 @@ Arguments
 Below is the full list of arguments accepted by ``sprite``. You can also see
 the canonical help text with ``sprite --help``.
 
+Commands
+========
+
+``sprite`` has two run commands:
+
+**from-alignments**
+    Build a mask from BAM/CRAM files via ``mosdepth``.
+
+**from-vcf**
+    Build a mask from a prefiltered all-sites VCF with per-sample
+    ``FORMAT/DP`` values.
+
 Required for every run
 ======================
 
@@ -18,7 +30,7 @@ Required for every run
 Required input mode
 ===================
 
-Use exactly one input mode.
+Use the command for the input mode you want.
 
 **--samples PATH**
     Sample metadata TSV for BAM/CRAM mode. The table must provide sample ID,
@@ -85,7 +97,7 @@ BAM/CRAM mode:
 
 .. code-block:: console
 
-   sprite \
+   sprite from-alignments \
      --samples tests/test_data/1000g_5sample_chr20_smoke/samples.tsv \
      --threshold 10 \
      --targets tests/test_data/1000g_5sample_chr20_smoke/targets.bed \
@@ -99,7 +111,7 @@ All-sites VCF mode:
 
 .. code-block:: console
 
-   sprite \
+   sprite from-vcf \
      --all-sites-vcf validation/cohort.all_sites.vcf.gz \
      --popfile validation/sample_populations.tsv \
      --threshold 10 \

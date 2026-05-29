@@ -25,8 +25,8 @@ Without a recognized header, columns are interpreted in this order:
 ``sample_id``, ``population``, ``alignment``.
 
 Alignment paths may be absolute or relative. For relative paths, ``sprite``
-first checks the current value, then paths relative to the sample table, then
-paths relative to the sample table's parent directories.
+first checks the current value, then the path relative to the sample table's
+parent directory.
 
 Popfile for all-sites VCF mode
 ==============================
@@ -58,7 +58,9 @@ columns. Every sample in ``--popfile`` must be present in the VCF.
 For each record, ``sprite`` reads the ``DP`` field from the sample's
 ``FORMAT`` value. Missing DP values do not pass. Non-integer DP values are
 rejected. Records may carry any ``FILTER`` value; the file is assumed to have
-already been filtered as desired.
+already been filtered as desired. Duplicate ``CHROM:POS`` records are combined
+with OR semantics for each sample, but duplicate records must be contiguous, as
+in a coordinate-sorted VCF.
 
 Target BED
 ==========

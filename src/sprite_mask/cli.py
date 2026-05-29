@@ -9,7 +9,6 @@ from pathlib import Path
 
 from sprite_mask import __version__
 from sprite_mask.config import AlignmentRunConfig, VcfRunConfig
-from sprite_mask.summaries import summarize_population_count_bed
 from sprite_mask.workflow import run_workflow
 
 
@@ -78,12 +77,6 @@ def _cmd_from_vcf(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_summarize(args: argparse.Namespace) -> int:
-    output = summarize_population_count_bed(Path(args.input), Path(args.output))
-    print(f"Wrote {output}")
-    return 0
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="sprite", description="build cohort depth mask BEDs")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -92,7 +85,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     _build_from_alignments_parser(subparsers)
     _build_from_vcf_parser(subparsers)
-    _build_summarize_parser(subparsers)
 
     return parser
 
@@ -162,19 +154,6 @@ def _build_from_vcf_parser(subparsers: argparse._SubParsersAction) -> None:  # t
     p.add_argument("--popfile", required=True, help="sample/population TSV (sample_id, population)")
     _add_common_run_args(p)
     p.set_defaults(subcommand=_cmd_from_vcf)
-
-
-def _build_summarize_parser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
-    p = subparsers.add_parser(
-        "summarize",
-        help="summarize a population count BED: sites per (population, passing-sample-count)",
-    )
-    p.add_argument("input", help="population count BED (.bed or .bed.gz)")
-    p.add_argument("output", help="output TSV path")
-    p.add_argument("--verbose", "-v", action="store_true", help="enable debug logging")
-    p.add_argument("--quiet", "-q", action="store_true", help="suppress informational logging")
-    p.add_argument("--debug", action="store_true", help="re-raise exceptions")
-    p.set_defaults(subcommand=_cmd_summarize)
 
 
 def _setup_logging(*, verbose: bool, quiet: bool) -> None:

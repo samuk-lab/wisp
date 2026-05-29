@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 from collections import Counter
 from collections.abc import Iterator
 from pathlib import Path
@@ -7,7 +8,7 @@ from typing import TextIO
 
 
 def summarize_population_count_bed(population_count_bed: Path, output_tsv: Path) -> Path:
-    with population_count_bed.open() as source:
+    with _open_text(population_count_bed) as source:
         header = _read_header(source, population_count_bed)
         populations = header[3:]
         counts: dict[str, Counter[int]] = {population: Counter() for population in populations}
@@ -25,6 +26,12 @@ def summarize_population_count_bed(population_count_bed: Path, output_tsv: Path)
             for passing_samples in sorted(counts[population]):
                 out.write(f"{population}\t{passing_samples}\t{counts[population][passing_samples]}\n")
     return output_tsv
+
+
+def _open_text(path: Path) -> TextIO:
+    if path.suffix in {".gz", ".bgz"}:
+        return gzip.open(path, "rt")
+    return path.open()
 
 
 def _iter_interval_fields(source: TextIO) -> Iterator[list[str]]:

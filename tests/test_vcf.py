@@ -138,6 +138,50 @@ def test_build_population_counts_from_all_sites_vcf_respects_target_boundaries(
     ]
 
 
+def test_build_population_counts_from_all_sites_vcf_rejects_noncontiguous_duplicates(
+    tmp_path: Path,
+) -> None:
+    samples = [Sample("s1", "popA")]
+    vcf = tmp_path / "all_sites.vcf"
+    vcf.write_text(
+        "##fileformat=VCFv4.2\n"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\ts1\n"
+        "chr1\t1\t.\tA\t.\t.\t.\t.\tGT:DP\t0/0:0\n"
+        "chr1\t2\t.\tC\t.\t.\t.\t.\tGT:DP\t0/0:7\n"
+        "chr1\t1\t.\tA\tT\t.\t.\t.\tGT:DP\t0/1:7\n"
+    )
+
+    with pytest.raises(ValueError, match="duplicate CHROM:POS records are contiguous"):
+        build_population_counts_from_all_sites_vcf(
+            samples,
+            vcf,
+            tmp_path / "population_counts.bed",
+            threshold=5,
+        )
+
+
+def test_build_population_counts_from_all_sites_vcf_rejects_reopened_chromosomes(
+    tmp_path: Path,
+) -> None:
+    samples = [Sample("s1", "popA")]
+    vcf = tmp_path / "all_sites.vcf"
+    vcf.write_text(
+        "##fileformat=VCFv4.2\n"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\ts1\n"
+        "chr1\t1\t.\tA\t.\t.\t.\t.\tGT:DP\t0/0:7\n"
+        "chr2\t1\t.\tC\t.\t.\t.\t.\tGT:DP\t0/0:7\n"
+        "chr1\t2\t.\tG\t.\t.\t.\t.\tGT:DP\t0/0:7\n"
+    )
+
+    with pytest.raises(ValueError, match="grouped by chromosome"):
+        build_population_counts_from_all_sites_vcf(
+            samples,
+            vcf,
+            tmp_path / "population_counts.bed",
+            threshold=5,
+        )
+
+
 def test_build_population_counts_from_all_sites_vcf_omits_missing_and_zero_depths(
     tmp_path: Path,
 ) -> None:

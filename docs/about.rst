@@ -41,7 +41,8 @@ In VCF mode, ``sprite`` reads ``FORMAT/DP`` values directly from an all-sites
 VCF. Each requested sample passes a base when its DP value is greater than or
 equal to ``--threshold``. Duplicate records at the same ``CHROM:POS`` are merged
 with OR semantics for each sample: if any duplicate record passes, the sample
-passes that base.
+passes that base. Duplicate records must be contiguous, as in a
+coordinate-sorted VCF.
 
 Sparse output
 =============

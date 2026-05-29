@@ -34,7 +34,7 @@ jobs:
 
       - name: Type check (mypy)
         shell: micromamba-shell {0}
-        run: python -m mypy src
+        run: python -m mypy
 
       - name: Run tests
         shell: micromamba-shell {0}

@@ -12,7 +12,7 @@ def test_ruff_check_passes() -> None:
 
 
 def test_mypy_check_passes() -> None:
-    assert_command_succeeds([sys.executable, "-m", "mypy", "src"], cwd=REPO_ROOT)
+    assert_command_succeeds([sys.executable, "-m", "mypy"], cwd=REPO_ROOT)
 
 
 def assert_command_succeeds(command: list[str], *, cwd: Path) -> None:

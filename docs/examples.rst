@@ -8,7 +8,7 @@ This run uses the small fixture bundled with the test suite:
 
 .. code-block:: console
 
-   sprite \
+   sprite from-alignments \
      --samples tests/test_data/1000g_5sample_chr20_smoke/samples.tsv \
      --threshold 10 \
      --targets tests/test_data/1000g_5sample_chr20_smoke/targets.bed \
@@ -32,7 +32,7 @@ sample pass BEDs, and ``bedtools multiinter`` output:
 
 .. code-block:: console
 
-   sprite \
+   sprite from-alignments \
      --samples tests/test_data/1000g_5sample_chr20_smoke/samples.tsv \
      --threshold 10 \
      --targets tests/test_data/1000g_5sample_chr20_smoke/targets.bed \
@@ -48,7 +48,7 @@ all-sites VCF:
 
 .. code-block:: console
 
-   sprite \
+   sprite from-vcf \
      --all-sites-vcf validation/1000g_20sample_highcov_4chrom_subset/1000g_20samples_highcov_4chroms.all_sites.bam_call.trim_alt.vcf.gz \
      --popfile validation/1000g_20sample_highcov_4chrom_subset/sample_populations.tsv \
      --threshold 10 \
@@ -75,7 +75,7 @@ Overwrite existing outputs
 
 .. code-block:: console
 
-   sprite \
+   sprite from-alignments \
      --samples tests/test_data/1000g_5sample_chr20_smoke/samples.tsv \
      --threshold 10 \
      --targets tests/test_data/1000g_5sample_chr20_smoke/targets.bed \

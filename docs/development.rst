@@ -16,7 +16,7 @@ Run checks
 .. code-block:: console
 
    ruff check .
-   mypy src
+   mypy
    pytest
    python -m build
 

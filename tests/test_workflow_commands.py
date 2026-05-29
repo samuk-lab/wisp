@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 from sprite_mask.bedtools import build_multiinter_command
@@ -96,6 +97,15 @@ def test_required_tools_for_vcf_mode_omits_mosdepth(tmp_path: Path) -> None:
     )
 
     assert _required_tools(config) == ("bgzip", "tabix")
+
+
+def test_cli_parser_exposes_only_run_subcommands() -> None:
+    parser = build_parser()
+    subparsers = next(
+        action for action in parser._actions if isinstance(action, argparse._SubParsersAction)
+    )
+
+    assert set(subparsers.choices) == {"from-alignments", "from-vcf"}
 
 
 def test_cli_parser_from_alignments_subcommand(tmp_path: Path) -> None:

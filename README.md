@@ -1,10 +1,10 @@
 # sprite
 
 `sprite` is a CLI utility for building sparse quantized depth-threshold mask BEDs
-from a cohort of BAM/CRAM files OR a prefiltered all-sites VCF. It is a companion
+from a cohort of BAM/CRAM files or a prefiltered all-sites VCF. It is a companion
 utility for pixy, but can also be used on its own.
 
-These can be used along with a variants-only VCF to properly computed the denominators
+These can be used along with a variants-only VCF to properly compute the denominators
 of pi, dxy, Watterson's theta, and Tajima's D.
 
 The package is distributed on bioconda as `sprite-mask` (just `sprite` was taken!), but
@@ -31,7 +31,7 @@ python -m pip install -e ".[dev]"
 ## Run
 
 ```bash
-sprite \
+sprite from-alignments \
   --samples tests/test_data/1000g_5sample_chr20_smoke/samples.tsv \
   --threshold 10 \
   --targets tests/test_data/1000g_5sample_chr20_smoke/targets.bed \
@@ -53,7 +53,7 @@ sample_2   popB        /path/sample_2.cram
 To build the same output from an all-sites VCF:
 
 ```bash
-sprite \
+sprite from-vcf \
   --all-sites-vcf validation/1000g_20sample_highcov_4chrom_subset/1000g_20samples_highcov_4chroms.all_sites.bam_call.trim_alt.vcf.gz \
   --popfile validation/1000g_20sample_highcov_4chrom_subset/sample_populations.tsv \
   --threshold 10 \
@@ -72,9 +72,10 @@ sample_2   popB
 VCF mode expects all popfile samples to be present in the VCF. Records may carry
 VCF `FILTER` values; the input is assumed to have already been filtered as desired.
 When duplicate records share a `CHROM:POS`, a sample passes that base if any duplicate
-record has `FORMAT/DP >= --threshold`.
+record has `FORMAT/DP >= --threshold`. Duplicate records must be contiguous, as in
+a coordinate-sorted VCF.
 
-Rardeless of mode, sprite outputs two main files:
+Regardless of mode, sprite outputs two main files:
 
 - `.sprite.bed.gz`
 - `.sprite.bed.gz.tbi`
@@ -98,4 +99,4 @@ bash tests/test_data/scripts/download_1000g_20sample_4chrom_highcov_fixture.sh
 
 ## Documentation
 
-The project documentation can be found here (link TBD).
+The project documentation lives in `docs/`.

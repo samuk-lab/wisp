@@ -57,6 +57,9 @@ def build_population_counts_from_all_sites_vcf(
         current_coord: tuple[str, int] | None = None
         current_passes: list[bool] | None = None
         current_interval: tuple[str, int, int, tuple[int, ...]] | None = None
+        last_chrom: str | None = None
+        last_pos = 0
+        closed_chroms: set[str] = set()
 
         for line_number, line in enumerate(source, start=next_line_number):
             stripped = line.rstrip("\n")
@@ -65,6 +68,15 @@ def build_population_counts_from_all_sites_vcf(
             fields = stripped.split("\t")
             chrom, pos = _parse_vcf_coordinate(fields, all_sites_vcf, line_number)
             coord = (chrom, pos)
+            last_chrom, last_pos = _validate_record_order(
+                chrom,
+                pos,
+                last_chrom,
+                last_pos,
+                closed_chroms,
+                all_sites_vcf,
+                line_number,
+            )
 
             if current_coord is not None and coord != current_coord:
                 current_interval = _append_site_counts(
@@ -193,6 +205,37 @@ def _parse_vcf_coordinate(fields: list[str], path: Path, line_number: int) -> tu
         raise ValueError(f"{path}:{line_number} has a non-integer POS") from error
     if pos < 1:
         raise ValueError(f"{path}:{line_number} has POS < 1")
+    return chrom, pos
+
+
+def _validate_record_order(
+    chrom: str,
+    pos: int,
+    last_chrom: str | None,
+    last_pos: int,
+    closed_chroms: set[str],
+    path: Path,
+    line_number: int,
+) -> tuple[str, int]:
+    if last_chrom is None:
+        return chrom, pos
+
+    if chrom != last_chrom:
+        closed_chroms.add(last_chrom)
+        if chrom in closed_chroms:
+            raise ValueError(
+                f"{path}:{line_number} has chromosome {chrom!r} in multiple blocks; "
+                "VCF records must be grouped by chromosome"
+            )
+        return chrom, pos
+
+    if pos < last_pos:
+        raise ValueError(
+            f"{path}:{line_number} has POS before an earlier {chrom!r} record; "
+            "VCF records must be sorted by POS within each chromosome so duplicate "
+            "CHROM:POS records are contiguous"
+        )
+
     return chrom, pos
 
 
