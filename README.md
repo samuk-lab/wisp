@@ -1,17 +1,27 @@
 ``sprite``<img src="https://raw.githubusercontent.com/samuk-lab/sprite/master/docs/images/sprite_logo.png" align="right" width="20%">
 ====================
 
-`sprite` is a CLI utility for building sparse quantized depth-threshold mask BEDs
-from a cohort of BAM/CRAM files or a prefiltered all-sites VCF. It is a companion
-utility for pixy, but can also be used on its own.
+`sprite` is a CLI for building population count masks from BAM/CRAM/VCF files. It is a companion
+utility for [pixy](https://github.com/ksamuk/pixy/), but can also be used on its own!
 
-These can be used along with a variants-only VCF to properly compute the denominators
+population count masks can be used along with a variants-only VCF to properly compute the denominators
 of pi, dxy, Watterson's theta, and Tajima's D.
 
-The package is distributed on bioconda as `sprite-mask` (just `sprite` was taken!), but
-the software is invoked on the command line with just `sprite`.
+The package is pre-release alpha pending validation, but will be distributed on bioconda as `sprite-mask` (just `sprite` was taken!).
 
-## Install
+## Install (pre-rplease instructions)
+
+### 1. Make a clean environment
+mamba create -n sprite python=3.11 pip git -c conda-forge
+mamba activate sprite
+
+### 2. Install likely command-line dependencies
+mamba install -c conda-forge samtools bcftools htslib mosdepth
+
+### 3. Install sprite directly from GitHub
+python -m pip install "git+https://github.com/samuk-lab/sprite.git"
+
+## Install (when the bioconda version becomes available):
 
 Create the conda environment from the repository root:
 
