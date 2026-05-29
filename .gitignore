@@ -27,3 +27,12 @@ work/
 
 # CRAM reference slices can exceed GitHub's regular-file limits.
 tests/test_data/**/ref_cache/
+
+# Dropbox conflict copies (Windows + Dropbox on shared fixture paths).
+*conflicted copy*
+
+# Convenience symlinks created by the 10-sample fixture download script
+# (ln -sf targets) -- regenerable on Linux/macOS, and Dropbox repeatedly
+# conflicts them on Windows.
+tests/test_data/1000g_10sample_highcov_subset/1000g_10samples_highcov.vcf.gz
+tests/test_data/1000g_10sample_highcov_subset/1000g_10samples_highcov.vcf.gz.tbi
