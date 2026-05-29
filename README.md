@@ -15,7 +15,7 @@ The package is pre-release alpha pending validation, but will be distributed on 
 mamba create -n sprite python=3.11 pip git -c conda-forge
 mamba activate sprite
 
-### 2. Install likely command-line dependencies
+### 2. Install command-line dependencies
 mamba install -c conda-forge samtools bcftools htslib mosdepth
 
 ### 3. Install sprite directly from GitHub
