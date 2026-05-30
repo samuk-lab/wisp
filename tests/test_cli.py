@@ -9,10 +9,17 @@ from pathlib import Path
 
 import pytest
 
-from sprite_mask.cli import main
+from sprite_mask import __version__
+from sprite_mask.cli import HELP_BANNER, build_parser, main
 from sprite_mask.models import WorkflowOutputs
 
 SPRITE_PROGRESS_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \[sprite\] Analysis ")
+
+
+def test_root_help_starts_with_banner_and_version() -> None:
+    help_text = build_parser().format_help()
+
+    assert help_text.startswith(f"{HELP_BANNER}\nsprite {__version__}\n\nusage:")
 
 
 def assert_sprite_progress(log_output: str, message: str) -> None:
@@ -261,7 +268,11 @@ def test_main_reports_regular_exceptions(
 
 def test_main_no_subcommand_returns_error(capsys: pytest.CaptureFixture[str]) -> None:
     status = main([])
+
     assert status == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith(f"{HELP_BANNER}\nsprite {__version__}\n\nusage:")
 
 
 def test_main_dry_run_skips_execution_and_returns_zero(

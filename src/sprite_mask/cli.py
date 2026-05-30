@@ -6,10 +6,33 @@ import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from sprite_mask import __version__
 from sprite_mask.config import AlignmentRunConfig, VcfRunConfig
 from sprite_mask.workflow import run_workflow
+
+HELP_BANNER = """\
+                     █▄
+             ▄    ▀▀▄██▄
+ ▄██▀█ ████▄ ████▄██ ██ ▄█▀█▄
+ ▀███▄ ██ ██ ██   ██ ██ ██▄█▀
+█▄▄██▀▄████▀▄█▀  ▄██▄██▄▀█▄▄▄
+       ██
+       ▀
+"""
+
+
+class SpriteArgumentParser(argparse.ArgumentParser):
+    def __init__(self, *args: Any, show_banner: bool = False, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._show_banner = show_banner
+
+    def format_help(self) -> str:
+        help_text = super().format_help()
+        if not self._show_banner:
+            return help_text
+        return f"{HELP_BANNER}\nsprite {__version__}\n\n{help_text}"
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -74,10 +97,17 @@ def _cmd_from_vcf(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="sprite", description="build depth mask BEDs")
+    parser = SpriteArgumentParser(
+        prog="sprite",
+        description="build depth mask BEDs",
+        show_banner=True,
+    )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
 
-    subparsers = parser.add_subparsers(metavar="COMMAND")
+    subparsers = parser.add_subparsers(
+        metavar="COMMAND",
+        parser_class=argparse.ArgumentParser,
+    )
 
     _build_from_alignments_parser(subparsers)
     _build_from_vcf_parser(subparsers)
