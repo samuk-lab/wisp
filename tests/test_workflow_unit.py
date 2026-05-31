@@ -66,7 +66,7 @@ def test_required_tools_for_vcf_mode_omits_mosdepth_and_bedtools(tmp_path: Path)
     config = VcfRunConfig(
         all_sites_vcf=vcf,
         popfile_path=tmp_path / "popfile.tsv",
-        threshold=5,
+        min_dp=5,
         out_dir=tmp_path / "out",
     )
     assert _required_tools(config) == ("bgzip", "tabix")
@@ -75,9 +75,9 @@ def test_required_tools_for_vcf_mode_omits_mosdepth_and_bedtools(tmp_path: Path)
 def test_required_tools_for_threshold_zero_omits_mosdepth(tmp_path: Path) -> None:
     config = AlignmentRunConfig(
         samples_path=tmp_path / "samples.tsv",
-        threshold=0,
+        min_dp=0,
         out_dir=tmp_path / "out",
-        targets_bed=tmp_path / "targets.bed",
+        mask_bed=tmp_path / "targets.bed",
     )
 
     assert _required_tools(config) == ("samtools", "bedtools", "bgzip", "tabix")
@@ -86,7 +86,7 @@ def test_required_tools_for_threshold_zero_omits_mosdepth(tmp_path: Path) -> Non
 def test_required_tools_for_alignment_mode_includes_mosdepth(tmp_path: Path) -> None:
     config = AlignmentRunConfig(
         samples_path=tmp_path / "samples.tsv",
-        threshold=10,
+        min_dp=10,
         out_dir=tmp_path / "out",
     )
 
@@ -100,7 +100,7 @@ def test_run_workflow_alignment_mode_dispatches_and_cleans_work_files(
     sample = Sample("s1", "popA", tmp_path / "s1.bam")
     config = AlignmentRunConfig(
         samples_path=tmp_path / "samples.tsv",
-        threshold=10,
+        min_dp=10,
         out_dir=tmp_path / "out",
         work_dir=tmp_path / "work",
     )
@@ -160,10 +160,10 @@ def test_prepare_targets_normalizes_sorts_and_tracks_outputs(
 
     config = AlignmentRunConfig(
         samples_path=tmp_path / "samples.tsv",
-        threshold=10,
+        min_dp=10,
         out_dir=tmp_path / "out",
         work_dir=tmp_path / "work",
-        targets_bed=tmp_path / "targets.bed",
+        mask_bed=tmp_path / "targets.bed",
     )
     config.resolved_work_dir.mkdir(parents=True)
     generated: list[Path] = []
@@ -187,7 +187,7 @@ def test_prepare_targets_without_targets_returns_none(tmp_path: Path) -> None:
         _prepare_targets(
             AlignmentRunConfig(
                 samples_path=tmp_path / "samples.tsv",
-                threshold=10,
+                min_dp=10,
                 out_dir=tmp_path / "out",
             ),
             generated,
@@ -202,10 +202,10 @@ def test_make_sample_pass_bed_threshold_zero_copies_target_bed(tmp_path: Path) -
     target_bed.write_text("chr1\t0\t10\n")
     config = AlignmentRunConfig(
         samples_path=tmp_path / "samples.tsv",
-        threshold=0,
+        min_dp=0,
         out_dir=tmp_path / "out",
         work_dir=tmp_path / "work",
-        targets_bed=target_bed,
+        mask_bed=target_bed,
     )
     config.resolved_work_dir.mkdir(parents=True)
 
@@ -224,12 +224,12 @@ def test_make_sample_pass_bed_threshold_zero_copies_target_bed(tmp_path: Path) -
 def test_make_sample_pass_bed_threshold_zero_requires_targets(tmp_path: Path) -> None:
     config = AlignmentRunConfig(
         samples_path=tmp_path / "samples.tsv",
-        threshold=0,
+        min_dp=0,
         out_dir=tmp_path / "out",
         work_dir=tmp_path / "work",
     )
 
-    with pytest.raises(ValueError, match="requires --targets"):
+    with pytest.raises(ValueError, match="requires --mask"):
         _make_sample_pass_bed(Sample("s1", "popA", tmp_path / "s1.bam"), config, None)
 
 
@@ -239,7 +239,7 @@ def test_make_sample_pass_bed_without_targets_uses_merged_pass_bed(
 ) -> None:
     config = AlignmentRunConfig(
         samples_path=tmp_path / "samples.tsv",
-        threshold=10,
+        min_dp=10,
         out_dir=tmp_path / "out",
         work_dir=tmp_path / "work",
     )
@@ -282,7 +282,7 @@ def test_make_sample_pass_bed_with_targets_clips_merged_pass_bed(
 ) -> None:
     config = AlignmentRunConfig(
         samples_path=tmp_path / "samples.tsv",
-        threshold=10,
+        min_dp=10,
         out_dir=tmp_path / "out",
         work_dir=tmp_path / "work",
     )
@@ -332,7 +332,7 @@ def test_make_sample_pass_beds_uses_parallel_jobs_and_tracks_work_files(
     ]
     config = AlignmentRunConfig(
         samples_path=tmp_path / "samples.tsv",
-        threshold=10,
+        min_dp=10,
         out_dir=tmp_path / "out",
         work_dir=tmp_path / "work",
         jobs=4,
@@ -366,7 +366,7 @@ def test_make_sample_pass_beds_uses_sequential_path_for_one_job(
     ]
     config = AlignmentRunConfig(
         samples_path=tmp_path / "samples.tsv",
-        threshold=10,
+        min_dp=10,
         out_dir=tmp_path / "out",
         work_dir=tmp_path / "work",
         jobs=1,
@@ -395,7 +395,7 @@ def test_build_from_alignments_uses_single_input_multiinter_for_one_sample(
 ) -> None:
     config = AlignmentRunConfig(
         samples_path=tmp_path / "samples.tsv",
-        threshold=10,
+        min_dp=10,
         out_dir=tmp_path / "out",
         work_dir=tmp_path / "work",
     )
@@ -463,7 +463,7 @@ def test_build_from_alignments_uses_bedtools_multiinter_for_multiple_samples(
 ) -> None:
     config = AlignmentRunConfig(
         samples_path=tmp_path / "samples.tsv",
-        threshold=10,
+        min_dp=10,
         out_dir=tmp_path / "out",
         work_dir=tmp_path / "work",
     )
@@ -523,10 +523,10 @@ def test_build_from_all_sites_vcf_writes_population_bed_and_metadata(
     config = VcfRunConfig(
         all_sites_vcf=vcf,
         popfile_path=popfile,
-        threshold=5,
+        min_dp=5,
         out_dir=tmp_path / "out",
         work_dir=tmp_path / "work",
-        targets_bed=targets,
+        mask_bed=targets,
     )
     config.resolved_work_dir.mkdir(parents=True)
     calls: dict[str, object] = {}
@@ -538,6 +538,7 @@ def test_build_from_all_sites_vcf_writes_population_bed_and_metadata(
         *,
         threshold: int,
         targets_bed: Path | None,
+        snps_only: bool,
         metadata: dict[str, object],
     ) -> Path:
         calls["build"] = (
@@ -546,6 +547,7 @@ def test_build_from_all_sites_vcf_writes_population_bed_and_metadata(
             output_bed,
             threshold,
             targets_bed,
+            snps_only,
             metadata,
         )
         output_bed.write_text("#chrom\tstart\tend\tpopA\n")
@@ -567,12 +569,14 @@ def test_build_from_all_sites_vcf_writes_population_bed_and_metadata(
     assert generated == [output_bed]
     build_call = calls["build"]
     assert build_call[:5] == (samples, vcf, output_bed, 5, targets)
-    assert build_call[5] == {
-        "threshold": 5,
+    assert build_call[5] is False
+    assert build_call[6] == {
+        "min_dp": 5,
         "sample_count": 1,
         "popfile": str(popfile),
         "all_sites_vcf": str(vcf),
-        "targets_bed": str(targets),
+        "mask_bed": str(targets),
+        "snps_only": False,
     }
     assert calls["sort"] == (output_bed, tmp_path / "out" / "sprite.bed.gz")
 
@@ -690,7 +694,7 @@ def test_full_all_sites_run_workflow_rejects_existing_outputs(
             VcfRunConfig(
                 all_sites_vcf=vcf,
                 popfile_path=popfile,
-                threshold=5,
+                min_dp=5,
                 out_dir=tmp_path / "out",
             )
         )

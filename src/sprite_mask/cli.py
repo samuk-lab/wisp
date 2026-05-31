@@ -60,14 +60,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _cmd_from_alignments(args: argparse.Namespace) -> int:
     config = AlignmentRunConfig(
         samples_path=Path(args.samples),
-        threshold=args.threshold,
+        min_dp=args.min_dp,
         out_dir=Path(args.out),
         output_prefix=args.output_prefix,
         work_dir=Path(args.work) if args.work else None,
         threads=args.threads,
         jobs=args.jobs,
-        targets_bed=Path(args.targets) if args.targets else None,
-        mapq=args.mapq,
+        mask_bed=Path(args.mask) if args.mask else None,
+        min_mapq=args.min_mapq,
+        max_dp=args.max_dp,
         exclude_flag=args.exclude_flag,
         reference=Path(args.reference) if args.reference else None,
         strict_depth=args.strict_depth,
@@ -83,14 +84,15 @@ def _cmd_from_vcf(args: argparse.Namespace) -> int:
     config = VcfRunConfig(
         all_sites_vcf=Path(args.all_sites_vcf),
         popfile_path=Path(args.popfile),
-        threshold=args.threshold,
+        min_dp=args.min_dp,
         out_dir=Path(args.out),
         output_prefix=args.output_prefix,
         work_dir=Path(args.work) if args.work else None,
-        targets_bed=Path(args.targets) if args.targets else None,
+        mask_bed=Path(args.mask) if args.mask else None,
         keep_work=args.keep_work,
         force=args.force,
         dry_run=args.dry_run,
+        snps_only=args.snps_only,
     )
     run_workflow(config)
     return 0
@@ -99,7 +101,7 @@ def _cmd_from_vcf(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = SpriteArgumentParser(
         prog="sprite",
-        description="build depth mask BEDs",
+        description="build population count masks",
         show_banner=True,
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -116,7 +118,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _add_common_run_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--threshold", required=True, type=int, help="minimum passing depth")
+    p.add_argument("--min-dp", required=True, type=int, help="minimum depth to pass a site")
     p.add_argument("--out", required=True, help="output directory")
     p.add_argument(
         "--output-prefix",
@@ -124,7 +126,7 @@ def _add_common_run_args(p: argparse.ArgumentParser) -> None:
         help="output file prefix within --out; .bed.gz is appended",
     )
     p.add_argument("--work", help="working directory; defaults to <out>/work")
-    p.add_argument("--targets", help="optional BED regions to include")
+    p.add_argument("--mask", help="restrict output to sites within this BED")
     p.add_argument("--keep-work", action="store_true", help="keep intermediate files")
     p.add_argument("--force", action="store_true", help="overwrite existing final outputs")
     p.add_argument(
@@ -134,9 +136,7 @@ def _add_common_run_args(p: argparse.ArgumentParser) -> None:
     )
     p.add_argument("--verbose", "-v", action="store_true", help="enable debug logging")
     p.add_argument("--quiet", "-q", action="store_true", help="suppress informational logging")
-    p.add_argument(
-        "--debug", action="store_true", help="re-raise exceptions instead of printing them"
-    )
+    p.add_argument("--debug", action="store_true", help="show full error tracebacks")
 
 
 def _build_from_alignments_parser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
@@ -154,21 +154,19 @@ def _build_from_alignments_parser(subparsers: argparse._SubParsersAction) -> Non
         "--threads",
         type=int,
         default=1,
-        help=(
-            "mosdepth threads per sample "
-            "(effective parallelism = --jobs × --threads)"
-        ),
+        help="mosdepth threads per sample",
     )
     p.add_argument(
         "--jobs",
         type=int,
         default=1,
-        help="samples to process concurrently (effective parallelism = --jobs × --threads)",
+        help="samples to process concurrently; total parallelism = --jobs × --threads",
     )
-    p.add_argument("--mapq", type=int, help="mosdepth mapping-quality threshold")
-    p.add_argument("--exclude-flag", type=int, help="mosdepth read flag exclusion value")
+    p.add_argument("--min-mapq", type=int, help="minimum read mapping quality")
+    p.add_argument("--max-dp", type=int, help="maximum depth to pass a site")
+    p.add_argument("--exclude-flag", type=int, help="SAM FLAG bits to exclude reads")
     p.add_argument("--reference", help="FASTA reference for CRAM inputs")
-    p.add_argument("--strict-depth", action="store_true", help="omit mosdepth --fast-mode")
+    p.add_argument("--strict-depth", action="store_true", help="precise per-base depth counting (slower)")
     p.set_defaults(subcommand=_cmd_from_alignments)
 
 
@@ -180,10 +178,15 @@ def _build_from_vcf_parser(subparsers: argparse._SubParsersAction) -> None:  # t
     p.add_argument(
         "--all-sites-vcf",
         required=True,
-        help="prefiltered all-sites VCF with per-sample FORMAT/DP values",
+        help="all-sites VCF with per-sample FORMAT/DP",
     )
     p.add_argument("--popfile", required=True, help="sample/population TSV (sample_id, population)")
     _add_common_run_args(p)
+    p.add_argument(
+        "--snps-only",
+        action="store_true",
+        help="exclude indel sites; retain invariant sites",
+    )
     p.set_defaults(subcommand=_cmd_from_vcf)
 
 

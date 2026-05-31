@@ -41,8 +41,8 @@ def run_workflow(config: RunConfig) -> WorkflowOutputs:
     if isinstance(config, VcfRunConfig):
         logger.info("Analysis validation: checking threshold and VCF input paths")
         validate_threshold(
-            config.threshold,
-            targets_bed=config.targets_bed,
+            config.min_dp,
+            targets_bed=config.mask_bed,
             all_sites_vcf=config.all_sites_vcf,
         )
         validate_vcf_inputs(config.all_sites_vcf, config.popfile_path)
@@ -50,7 +50,7 @@ def run_workflow(config: RunConfig) -> WorkflowOutputs:
         samples = read_popfile(config.popfile_path)
     else:
         logger.info("Analysis validation: checking threshold and alignment run settings")
-        validate_threshold(config.threshold, targets_bed=config.targets_bed)
+        validate_threshold(config.min_dp, targets_bed=config.mask_bed)
         validate_threads(config.threads)
         validate_jobs(config.jobs)
         logger.info("Analysis input: reading sample file %s", config.samples_path)
@@ -67,7 +67,7 @@ def run_workflow(config: RunConfig) -> WorkflowOutputs:
         logger.info("Analysis validation: checking alignment headers against sample file")
         validate_alignment_sample_headers(samples)
 
-    outputs = workflow_output_paths(config.out_dir, config.threshold, config.output_prefix)
+    outputs = workflow_output_paths(config.out_dir, config.min_dp, config.output_prefix)
     final_paths = [
         outputs.population_count_bed_gz,
         outputs.population_count_bed_index,
@@ -77,10 +77,10 @@ def run_workflow(config: RunConfig) -> WorkflowOutputs:
 
     if config.dry_run:
         logger.info(
-            "Analysis dry-run summary: would process %d sample(s) via %s mode with threshold %d",
+            "Analysis dry-run summary: would process %d sample(s) via %s mode with min-dp %d",
             len(samples),
             mode,
-            config.threshold,
+            config.min_dp,
         )
         logger.info(
             "Analysis dry-run summary: output would be written to %s",
@@ -120,32 +120,34 @@ def _build_from_all_sites_vcf(
     generated_work_files: list[Path],
 ) -> None:
     metadata = {
-        "threshold": config.threshold,
+        "min_dp": config.min_dp,
         "sample_count": len(samples),
         "popfile": str(config.popfile_path),
         "all_sites_vcf": str(config.all_sites_vcf),
-        "targets_bed": str(config.targets_bed) if config.targets_bed is not None else None,
+        "mask_bed": str(config.mask_bed) if config.mask_bed is not None else None,
+        "snps_only": config.snps_only,
     }
     population_count_bed = (
-        config.resolved_work_dir / f"cohort.d{config.threshold}.population_count_quantized.bed"
+        config.resolved_work_dir / f"cohort.d{config.min_dp}.population_count_quantized.bed"
     )
     generated_work_files.append(population_count_bed)
     logger.info("Analysis VCF: building population counts from %s", config.all_sites_vcf)
-    if config.targets_bed is not None:
+    if config.mask_bed is not None:
         logger.info(
             "Analysis VCF: restricting population counts to targets in %s",
-            config.targets_bed,
+            config.mask_bed,
         )
     build_population_counts_from_all_sites_vcf(
         samples,
         config.all_sites_vcf,
         population_count_bed,
-        threshold=config.threshold,
-        targets_bed=config.targets_bed,
+        threshold=config.min_dp,
+        targets_bed=config.mask_bed,
+        snps_only=config.snps_only,
         metadata=metadata,
     )
 
-    outputs = workflow_output_paths(config.out_dir, config.threshold, config.output_prefix)
+    outputs = workflow_output_paths(config.out_dir, config.min_dp, config.output_prefix)
     logger.info("Analysis VCF: preparing final indexed BED")
     _sort_bgzip_tabix_bed(population_count_bed, outputs.population_count_bed_gz)
 
@@ -158,7 +160,7 @@ def _build_from_alignments(
     target_bed = _prepare_targets(config, generated_work_files)
     passing_beds = _make_sample_pass_beds(samples, config, target_bed, generated_work_files)
 
-    multiinter_tsv = config.resolved_work_dir / f"cohort.d{config.threshold}.multiinter.tsv"
+    multiinter_tsv = config.resolved_work_dir / f"cohort.d{config.min_dp}.multiinter.tsv"
     generated_work_files.append(multiinter_tsv)
     sample_names = [sample.sample_id for sample in samples]
     logger.info("Analysis alignments: combining %d sample pass BED(s)", len(passing_beds))
@@ -168,13 +170,13 @@ def _build_from_alignments(
         run_multiinter(passing_beds, sample_names, multiinter_tsv)
 
     metadata = {
-        "threshold": config.threshold,
+        "min_dp": config.min_dp,
         "sample_count": len(samples),
         "samples_path": str(config.samples_path),
-        "targets_bed": str(config.targets_bed) if config.targets_bed is not None else None,
+        "mask_bed": str(config.mask_bed) if config.mask_bed is not None else None,
     }
     population_count_bed = (
-        config.resolved_work_dir / f"cohort.d{config.threshold}.population_count_quantized.bed"
+        config.resolved_work_dir / f"cohort.d{config.min_dp}.population_count_quantized.bed"
     )
     generated_work_files.append(population_count_bed)
     logger.info("Analysis alignments: collapsing sample indicators to population counts")
@@ -184,7 +186,7 @@ def _build_from_alignments(
         population_count_bed,
         metadata=metadata,
     )
-    outputs = workflow_output_paths(config.out_dir, config.threshold, config.output_prefix)
+    outputs = workflow_output_paths(config.out_dir, config.min_dp, config.output_prefix)
     logger.info("Analysis alignments: preparing final indexed BED")
     _sort_bgzip_tabix_bed(population_count_bed, outputs.population_count_bed_gz)
 
@@ -206,21 +208,21 @@ def workflow_output_paths(
 def _required_tools(config: RunConfig) -> tuple[str, ...]:
     if isinstance(config, VcfRunConfig):
         return ("bgzip", "tabix")
-    if config.threshold == 0:
+    if config.min_dp == 0:
         return ("samtools", "bedtools", "bgzip", "tabix")
     return ("samtools", "mosdepth", "bedtools", "bgzip", "tabix")
 
 
 def _prepare_targets(config: RunConfig, generated_work_files: list[Path]) -> Path | None:
-    if config.targets_bed is None:
+    if config.mask_bed is None:
         logger.info("Analysis targets: no target BED provided")
         return None
 
     normalized = config.resolved_work_dir / "targets.3col.bed"
     sorted_merged = config.resolved_work_dir / "targets.3col.sorted.merged.bed"
     generated_work_files.extend([normalized, sorted_merged])
-    logger.info("Analysis targets: normalizing %s", config.targets_bed)
-    normalize_targets_bed(config.targets_bed, normalized)
+    logger.info("Analysis targets: normalizing %s", config.mask_bed)
+    normalize_targets_bed(config.mask_bed, normalized)
     logger.info("Analysis targets: sorting and merging target intervals")
     sort_and_merge_bed(normalized, sorted_merged)
     return sorted_merged
@@ -263,12 +265,12 @@ def _make_sample_pass_bed(
     config: AlignmentRunConfig,
     target_bed: Path | None,
 ) -> tuple[Path, MosdepthOutputs | None, list[Path]]:
-    sample_prefix = config.resolved_work_dir / f"{sample.sample_id}.d{config.threshold}"
+    sample_prefix = config.resolved_work_dir / f"{sample.sample_id}.d{config.min_dp}"
     generated_work_files: list[Path] = []
 
-    if config.threshold == 0:
+    if config.min_dp == 0:
         if target_bed is None:
-            raise ValueError("--threshold 0 requires --targets")
+            raise ValueError("--min-dp 0 requires --mask")
         logger.info(
             "Analysis sample %s: using target intervals because threshold is 0",
             sample.sample_id,

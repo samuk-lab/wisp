@@ -1,24 +1,24 @@
-Output Files
+Output files
 ************
 
 Final outputs
 =============
 
-Each successful run writes two final files to ``--out``:
+Each successful run writes two files to ``--out``:
 
 .. code-block:: text
 
    sprite.bed.gz
    sprite.bed.gz.tbi
 
-The BED is bgzip-compressed and indexed with ``tabix -p bed``.
-Set ``--output-prefix`` to choose a different output filename prefix; ``.bed.gz``
-is appended to the prefix.
+The population count mask is bgzip-compressed and indexed with
+``tabix -p bed``. Use ``--output-prefix`` to choose a different filename
+stem; ``.bed.gz`` is always appended.
 
 BED columns
 ===========
 
-The final BED starts with comment-prefixed headers:
+The mask starts with two comment-prefixed header lines:
 
 .. code-block:: text
 
@@ -38,7 +38,7 @@ Data rows contain:
 
 **population columns**
     Number of samples in each population with depth greater than or equal to
-    ``--threshold`` over the interval.
+    ``--min-dp`` over the interval.
 
 Adjacent bases with identical population counts are collapsed. Intervals where
 all counts are zero are omitted.
@@ -53,39 +53,38 @@ The ``#sprite_mask_metadata`` line is JSON. It includes:
 * ``columns``
 * ``coordinate_system``
 * ``zero_count_intervals_omitted``
-* ``threshold``
+* ``min_dp``
 * ``sample_count``
 * ``populations``
 * ``population_columns``
 * ``population_sample_counts``
 * input paths such as ``samples_path``, ``popfile``, ``all_sites_vcf``, and
-  ``targets_bed`` when applicable
+  ``mask_bed`` when applicable
 
 Sparse interpretation
 =====================
 
-The final BED is sparse by design. A missing interval means zero passing
-samples in every population. It does not mean the interval was skipped by the
-writer or that counts are unknown.
+The mask is sparse by design. A missing interval means zero passing samples
+in every population — not that the interval was skipped or that counts are
+unknown.
 
 Intermediate files
 ==================
 
-When ``--keep-work`` is set, BAM/CRAM mode keeps files like:
+When ``--keep-work`` is set, BAM/CRAM mode retains files like:
 
 .. code-block:: text
 
-   targets.3col.bed
-   targets.3col.sorted.merged.bed
-   <sample>.d<threshold>.quantized.bed.gz
-   <sample>.d<threshold>.quantized.bed.gz.csi
-   <sample>.d<threshold>.mosdepth.summary.txt
-   <sample>.d<threshold>.mosdepth.global.dist.txt
-   <sample>.d<threshold>.mosdepth.stderr.log
-   <sample>.d<threshold>.pass.bed
-   <sample>.d<threshold>.pass.targets.bed
-   cohort.d<threshold>.multiinter.tsv
-   cohort.d<threshold>.population_count_quantized.bed
+   mask.3col.bed
+   mask.3col.sorted.merged.bed
+   <sample>.d<min-dp>.quantized.bed.gz
+   <sample>.d<min-dp>.quantized.bed.gz.csi
+   <sample>.d<min-dp>.mosdepth.summary.txt
+   <sample>.d<min-dp>.mosdepth.global.dist.txt
+   <sample>.d<min-dp>.mosdepth.stderr.log
+   <sample>.d<min-dp>.pass.bed
+   <sample>.d<min-dp>.pass.targets.bed
+   cohort.d<min-dp>.multiinter.tsv
+   cohort.d<min-dp>.population_count_quantized.bed
 
-VCF mode keeps the uncompressed population-count BED in the work directory when
-``--keep-work`` is set.
+VCF mode retains the uncompressed population count mask in the work directory.

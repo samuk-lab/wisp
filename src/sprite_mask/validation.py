@@ -17,7 +17,7 @@ def validate_threshold(
     if threshold < 0:
         raise ValueError("--threshold must be a non-negative integer")
     if threshold == 0 and targets_bed is None and all_sites_vcf is None:
-        raise ValueError("--threshold 0 requires --targets because no genome.txt is required")
+        raise ValueError("--min-dp 0 requires --mask because no genome.txt is required")
 
 
 def validate_threads(threads: int) -> None:

@@ -23,7 +23,7 @@ def test_validate_threshold_rejects_negative() -> None:
 
 
 def test_validate_threshold_zero_requires_targets_or_vcf(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="requires --targets"):
+    with pytest.raises(ValueError, match="requires --mask"):
         validate_threshold(0)
 
     validate_threshold(0, targets_bed=tmp_path / "targets.bed")

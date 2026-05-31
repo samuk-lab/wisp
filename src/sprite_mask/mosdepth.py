@@ -9,13 +9,16 @@ from sprite_mask.models import MosdepthOutputs, Sample
 
 
 def run_mosdepth(sample: Sample, config: AlignmentRunConfig) -> MosdepthOutputs:
-    prefix = config.resolved_work_dir / f"{sample.sample_id}.d{config.threshold}"
+    prefix = config.resolved_work_dir / f"{sample.sample_id}.d{config.min_dp}"
     outputs = mosdepth_outputs_for_prefix(prefix)
     outputs.stderr_log.parent.mkdir(parents=True, exist_ok=True)
 
     command = build_mosdepth_command(sample, config, prefix)
     env = os.environ.copy()
-    env.update({"MOSDEPTH_Q0": "FAIL", "MOSDEPTH_Q1": "PASS"})
+    q_labels: dict[str, str] = {"MOSDEPTH_Q0": "FAIL", "MOSDEPTH_Q1": "PASS"}
+    if config.max_dp is not None:
+        q_labels["MOSDEPTH_Q2"] = "FAIL"
+    env.update(q_labels)
 
     with outputs.stderr_log.open("w") as stderr_log:
         subprocess.run(
@@ -52,18 +55,23 @@ def build_mosdepth_command(sample: Sample, config: AlignmentRunConfig, prefix: P
     if sample.alignment is None:
         raise ValueError(f"alignment for sample {sample.sample_id!r} is required")
 
+    quantize = (
+        f"0:{config.min_dp}:{config.max_dp}:"
+        if config.max_dp is not None
+        else f"0:{config.min_dp}:"
+    )
     command = [
         "mosdepth",
         "--threads",
         str(config.threads),
         "--no-per-base",
         "--quantize",
-        f"0:{config.threshold}:",
+        quantize,
     ]
     if not config.strict_depth:
         command.append("--fast-mode")
-    if config.mapq is not None:
-        command.extend(["--mapq", str(config.mapq)])
+    if config.min_mapq is not None:
+        command.extend(["--mapq", str(config.min_mapq)])
     if config.exclude_flag is not None:
         command.extend(["--flag", str(config.exclude_flag)])
     if config.reference is not None:

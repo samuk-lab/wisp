@@ -24,6 +24,7 @@ def build_population_counts_from_all_sites_vcf(
     threshold: int,
     targets_bed: Path | None = None,
     depth_field: str = "DP",
+    snps_only: bool = False,
     metadata: dict[str, object] | None = None,
 ) -> Path:
     """Build a population-count BED directly from a prefiltered all-sites VCF."""
@@ -53,6 +54,7 @@ def build_population_counts_from_all_sites_vcf(
                     population: population_sample_counts[population]
                     for population in populations
                 },
+                "snps_only": snps_only,
                 **(metadata or {}),
             },
         )
@@ -91,7 +93,11 @@ def build_population_counts_from_all_sites_vcf(
                     len(populations),
                     target_index,
                 )
+                current_coord = None
                 current_passes = None
+
+            if snps_only and not _is_snp_or_invariant_record(fields):
+                continue
 
             if current_passes is None:
                 current_coord = coord
@@ -224,6 +230,18 @@ def _parse_vcf_coordinate(fields: list[str], path: Path, line_number: int) -> tu
     if pos < 1:
         raise ValueError(f"{path}:{line_number} has POS < 1")
     return chrom, pos
+
+
+def _is_snp_or_invariant_record(fields: list[str]) -> bool:
+    ref = fields[3]
+    alt = fields[4]
+    if len(ref) != 1 or ref in {".", "*"}:
+        return False
+    if alt == ".":
+        return True
+
+    alt_alleles = alt.split(",")
+    return all(len(allele) == 1 and allele not in {".", "*"} for allele in alt_alleles)
 
 
 def _validate_record_order(

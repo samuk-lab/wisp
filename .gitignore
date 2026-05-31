@@ -5,6 +5,7 @@
 src/sprite_mask/__pycache__/
 __pycache__/
 *.py[cod]
+*.py.tmp.*
 
 .mypy_cache/
 .pytest_cache/

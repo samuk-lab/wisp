@@ -58,7 +58,7 @@ def test_main_all_sites_vcf_writes_indexed_population_bed(
             str(vcf),
             "--popfile",
             str(popfile),
-            "--threshold",
+            "--min-dp",
             "5",
             "--out",
             str(out_dir),
@@ -125,7 +125,7 @@ def test_main_builds_alignment_run_config(
             "from-alignments",
             "--samples",
             str(tmp_path / "samples.tsv"),
-            "--threshold",
+            "--min-dp",
             "30",
             "--out",
             str(tmp_path / "out"),
@@ -135,9 +135,9 @@ def test_main_builds_alignment_run_config(
             "4",
             "--jobs",
             "2",
-            "--targets",
+            "--mask",
             str(tmp_path / "targets.bed"),
-            "--mapq",
+            "--min-mapq",
             "20",
             "--exclude-flag",
             "1796",
@@ -152,12 +152,12 @@ def test_main_builds_alignment_run_config(
     assert status == 0
     assert seen_config is not None
     assert seen_config.samples_path == tmp_path / "samples.tsv"
-    assert seen_config.threshold == 30
+    assert seen_config.min_dp == 30
     assert seen_config.output_prefix == "sprite"
     assert seen_config.threads == 4
     assert seen_config.jobs == 2
-    assert seen_config.targets_bed == tmp_path / "targets.bed"
-    assert seen_config.mapq == 20
+    assert seen_config.mask_bed == tmp_path / "targets.bed"
+    assert seen_config.min_mapq == 20
     assert seen_config.exclude_flag == 1796
     assert seen_config.reference == tmp_path / "ref.fa"
     assert seen_config.strict_depth is True
@@ -192,7 +192,7 @@ def test_main_accepts_output_prefix(
             str(tmp_path / "all_sites.vcf.gz"),
             "--popfile",
             str(tmp_path / "popfile.tsv"),
-            "--threshold",
+            "--min-dp",
             "30",
             "--out",
             str(tmp_path / "out"),
@@ -204,6 +204,42 @@ def test_main_accepts_output_prefix(
     assert status == 0
     assert seen_config is not None
     assert seen_config.output_prefix == "custom"
+
+
+def test_main_from_vcf_accepts_snps_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen_config = None
+
+    def fake_run_workflow(config: object) -> WorkflowOutputs:
+        nonlocal seen_config
+        seen_config = config
+        return WorkflowOutputs(
+            population_count_bed_gz=tmp_path / "out" / "sprite.bed.gz",
+            population_count_bed_index=tmp_path / "out" / "sprite.bed.gz.tbi",
+        )
+
+    monkeypatch.setattr("sprite_mask.cli.run_workflow", fake_run_workflow)
+
+    status = main(
+        [
+            "from-vcf",
+            "--all-sites-vcf",
+            str(tmp_path / "all_sites.vcf.gz"),
+            "--popfile",
+            str(tmp_path / "popfile.tsv"),
+            "--min-dp",
+            "30",
+            "--out",
+            str(tmp_path / "out"),
+            "--snps-only",
+        ]
+    )
+
+    assert status == 0
+    assert seen_config is not None
+    assert seen_config.snps_only is True
 
 
 def test_main_reports_subprocess_errors(
@@ -221,7 +257,7 @@ def test_main_reports_subprocess_errors(
             "from-alignments",
             "--samples",
             str(tmp_path / "samples.tsv"),
-            "--threshold",
+            "--min-dp",
             "30",
             "--out",
             str(tmp_path / "out"),
@@ -253,7 +289,7 @@ def test_main_reports_regular_exceptions(
             "from-alignments",
             "--samples",
             str(tmp_path / "samples.tsv"),
-            "--threshold",
+            "--min-dp",
             "30",
             "--out",
             str(tmp_path / "out"),
@@ -295,7 +331,7 @@ def test_main_dry_run_skips_execution_and_returns_zero(
             "from-alignments",
             "--samples",
             str(tmp_path / "samples.tsv"),
-            "--threshold",
+            "--min-dp",
             "30",
             "--out",
             str(tmp_path / "out"),
@@ -323,7 +359,7 @@ def test_main_debug_reraises_exception(
                 "from-alignments",
                 "--samples",
                 str(tmp_path / "samples.tsv"),
-                "--threshold",
+                "--min-dp",
                 "30",
                 "--out",
                 str(tmp_path / "out"),
