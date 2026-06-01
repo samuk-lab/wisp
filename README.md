@@ -25,7 +25,7 @@ python -m pip install "git+https://github.com/samuk-lab/sprite.git"
 ```bash
 sprite from-alignments \
   --samples samples.tsv \
-  --min-dp 10 \
+  --variants-vcf variants.vcf.gz \
   --out results \
   --threads 4 \
   --jobs 2
@@ -40,6 +40,14 @@ sample_2   popB        /path/sample_2.cram
 ```
 
 If BAM/CRAM read groups include sample names, they must match the corresponding `sample_id`.
+
+When `--variants-vcf` is provided, `sprite` uses the variants-only VCF to fill in omitted
+alignment thresholds: `--min-dp`/`--max-dp` from per-sample `FORMAT/DP` and `--min-mapq`
+from `INFO/MQ` when those fields are available. Manually supplied threshold flags take
+precedence. The same VCF is also scanned for indels, symbolic structural variants, breakends,
+and multi-nucleotide polymorphisms; those reference spans are removed from every sample pass BED,
+so they are omitted from the sparse final BED and interpreted as zero passing samples in every
+population.
 
 ### From an all-sites VCF
 

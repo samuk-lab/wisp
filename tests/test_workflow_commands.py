@@ -155,6 +155,27 @@ def test_cli_parser_from_alignments_subcommand(tmp_path: Path) -> None:
     assert args.jobs == 2
 
 
+def test_cli_parser_from_alignments_allows_variants_vcf_to_default_min_dp(
+    tmp_path: Path,
+) -> None:
+    parser = build_parser()
+
+    args = parser.parse_args(
+        [
+            "from-alignments",
+            "--samples",
+            str(tmp_path / "samples.tsv"),
+            "--variants-vcf",
+            str(tmp_path / "variants.vcf.gz"),
+            "--out",
+            str(tmp_path / "out"),
+        ]
+    )
+
+    assert args.min_dp is None
+    assert args.variants_vcf == str(tmp_path / "variants.vcf.gz")
+
+
 def test_cli_parser_from_vcf_subcommand(tmp_path: Path) -> None:
     parser = build_parser()
 

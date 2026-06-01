@@ -12,6 +12,7 @@ from sprite_mask.bedtools import (
     intersect_sort_merge,
     run_multiinter,
     sort_and_merge_bed,
+    subtract_sort_merge,
     write_single_input_multiinter,
 )
 
@@ -64,6 +65,34 @@ def test_intersect_sort_merge_builds_bedtools_pipeline(
         (
             [
                 ["bedtools", "intersect", "-a", str(a_bed), "-b", str(b_bed)],
+                ["bedtools", "sort", "-i", "-"],
+                ["bedtools", "merge", "-i", "-"],
+            ],
+            out_bed,
+        )
+    ]
+
+
+def test_subtract_sort_merge_builds_bedtools_pipeline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[list[list[str]], Path]] = []
+
+    def fake_run_pipeline(commands: Sequence[Sequence[str]], out_path: Path) -> None:
+        calls.append(([list(command) for command in commands], out_path))
+
+    monkeypatch.setattr("sprite_mask.bedtools.run_pipeline", fake_run_pipeline)
+
+    a_bed = tmp_path / "a.bed"
+    b_bed = tmp_path / "b.bed"
+    out_bed = tmp_path / "out.bed"
+
+    assert subtract_sort_merge(a_bed, b_bed, out_bed) == out_bed
+    assert calls == [
+        (
+            [
+                ["bedtools", "subtract", "-a", str(a_bed), "-b", str(b_bed)],
                 ["bedtools", "sort", "-i", "-"],
                 ["bedtools", "merge", "-i", "-"],
             ],

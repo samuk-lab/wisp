@@ -9,6 +9,8 @@ from sprite_mask.models import MosdepthOutputs, Sample
 
 
 def run_mosdepth(sample: Sample, config: AlignmentRunConfig) -> MosdepthOutputs:
+    if config.min_dp is None:
+        raise ValueError("--min-dp is required before running mosdepth")
     prefix = config.resolved_work_dir / f"{sample.sample_id}.d{config.min_dp}"
     outputs = mosdepth_outputs_for_prefix(prefix)
     outputs.stderr_log.parent.mkdir(parents=True, exist_ok=True)
@@ -54,6 +56,8 @@ def run_mosdepth(sample: Sample, config: AlignmentRunConfig) -> MosdepthOutputs:
 def build_mosdepth_command(sample: Sample, config: AlignmentRunConfig, prefix: Path) -> list[str]:
     if sample.alignment is None:
         raise ValueError(f"alignment for sample {sample.sample_id!r} is required")
+    if config.min_dp is None:
+        raise ValueError("--min-dp is required before running mosdepth")
 
     quantize = (
         f"0:{config.min_dp}:{config.max_dp}:"

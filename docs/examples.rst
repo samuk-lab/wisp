@@ -40,6 +40,36 @@ Add ``--keep-work`` to inspect the mosdepth outputs, sample pass BEDs, and
      --work work/chr20_debug \
      --keep-work
 
+BAM/CRAM with a variants-only VCF
+=================================
+
+Use ``--variants-vcf`` when you have a variants-only VCF from the same callset
+and want ``sprite`` to estimate omitted alignment thresholds and mask
+non-SNP variant spans:
+
+.. code-block:: console
+
+   sprite from-alignments \
+     --samples tests/test_data/1000g_5sample_chr20_smoke/samples.tsv \
+     --variants-vcf validation/cohort.variants.vcf.gz \
+     --mask tests/test_data/1000g_5sample_chr20_smoke/targets.bed \
+     --out results/chr20_variants_vcf \
+     --work work/chr20_variants_vcf \
+     --threads 2 \
+     --jobs 2
+
+Manual threshold flags override VCF-derived estimates:
+
+.. code-block:: console
+
+   sprite from-alignments \
+     --samples samples.tsv \
+     --variants-vcf cohort.variants.vcf.gz \
+     --min-dp 8 \
+     --max-dp 80 \
+     --min-mapq 30 \
+     --out results/manual_thresholds
+
 All-sites VCF run
 =================
 

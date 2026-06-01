@@ -152,6 +152,8 @@ def test_main_builds_alignment_run_config(
             "2",
             "--mask",
             str(tmp_path / "targets.bed"),
+            "--variants-vcf",
+            str(tmp_path / "variants.vcf.gz"),
             "--min-mapq",
             "20",
             "--exclude-flag",
@@ -172,6 +174,7 @@ def test_main_builds_alignment_run_config(
     assert seen_config.threads == 4
     assert seen_config.jobs == 2
     assert seen_config.mask_bed == tmp_path / "targets.bed"
+    assert seen_config.variants_vcf == tmp_path / "variants.vcf.gz"
     assert seen_config.min_mapq == 20
     assert seen_config.exclude_flag == 1796
     assert seen_config.reference == tmp_path / "ref.fa"
@@ -182,6 +185,40 @@ def test_main_builds_alignment_run_config(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err == ""
+
+
+def test_main_builds_alignment_run_config_with_variants_vcf_default_min_dp(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen_config = None
+
+    def fake_run_workflow(config: object) -> WorkflowOutputs:
+        nonlocal seen_config
+        seen_config = config
+        return WorkflowOutputs(
+            population_count_bed_gz=tmp_path / "out" / "sprite.bed.gz",
+            population_count_bed_index=tmp_path / "out" / "sprite.bed.gz.tbi",
+        )
+
+    monkeypatch.setattr("sprite_mask.cli.run_workflow", fake_run_workflow)
+
+    status = main(
+        [
+            "from-alignments",
+            "--samples",
+            str(tmp_path / "samples.tsv"),
+            "--variants-vcf",
+            str(tmp_path / "variants.vcf.gz"),
+            "--out",
+            str(tmp_path / "out"),
+        ]
+    )
+
+    assert status == 0
+    assert seen_config is not None
+    assert seen_config.min_dp is None
+    assert seen_config.variants_vcf == tmp_path / "variants.vcf.gz"
 
 
 def test_main_accepts_output_prefix(

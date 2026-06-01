@@ -7,7 +7,12 @@ from pathlib import Path
 import pytest
 
 from sprite_mask.models import Sample
-from sprite_mask.vcf import build_population_counts_from_all_sites_vcf, validate_vcf_sample_names
+from sprite_mask.vcf import (
+    build_population_counts_from_all_sites_vcf,
+    estimate_alignment_thresholds_from_variants_vcf,
+    validate_vcf_sample_names,
+    write_variant_exclusion_bed,
+)
 
 
 def test_build_population_counts_from_all_sites_vcf_merges_site_counts(
@@ -125,6 +130,61 @@ def test_validate_vcf_sample_names_rejects_popfile_samples_absent_from_vcf(
 
     with pytest.raises(ValueError, match="popfile sample.*absent from VCF: s2"):
         validate_vcf_sample_names([Sample("s1", "popA"), Sample("s2", "popB")], vcf)
+
+
+def test_estimate_alignment_thresholds_from_variants_vcf_uses_sample_dp_and_info_mq(
+    tmp_path: Path,
+) -> None:
+    vcf = tmp_path / "variants.vcf"
+    vcf.write_text(
+        "##fileformat=VCFv4.2\n"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\ts1\ts2\textra\n"
+        "chr1\t1\t.\tA\tC\t.\t.\tMQ=59.8\tGT:DP\t0/1:12\t0/0:0\t0/1:2\n"
+        "chr1\t2\t.\tG\tT\t.\t.\tMQ=42.2\tGT:AD:DP\t0/0:3,0:3\t0/1:9,1:9\t0/1:50,1:50\n"
+        "chr1\t3\t.\tC\t.\t.\t.\tMQ=10\tGT:DP\t0/0:1\t0/0:1\t0/0:1\n"
+    )
+
+    estimates = estimate_alignment_thresholds_from_variants_vcf(
+        vcf,
+        [Sample("s1", "popA"), Sample("s2", "popB")],
+    )
+
+    assert estimates.min_dp == 3
+    assert estimates.max_dp == 12
+    assert estimates.min_mapq == 42
+    assert estimates.depth_value_count == 3
+    assert estimates.mapq_value_count == 2
+
+
+def test_write_variant_exclusion_bed_writes_non_snp_reference_spans(
+    tmp_path: Path,
+) -> None:
+    vcf = tmp_path / "variants.vcf"
+    vcf.write_text(
+        "##fileformat=VCFv4.2\n"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+        "chr1\t1\t.\tA\tC,G\t.\t.\t.\n"
+        "chr1\t2\t.\tA\tAC\t.\t.\t.\n"
+        "chr1\t5\t.\tATG\tA\t.\t.\t.\n"
+        "chr1\t10\t.\tAC\tGT\t.\t.\t.\n"
+        "chr1\t20\t.\tN\t<DEL>\t.\t.\tSVTYPE=DEL;END=25\n"
+        "chr1\t30\t.\tN\t<DUP>\t.\t.\tSVTYPE=DUP;SVLEN=12\n"
+        "chr1\t50\t.\tN\tN]chr2:10]\t.\t.\tSVTYPE=BND\n"
+        "chr1\t60\t.\tA\t.\t.\t.\t.\n"
+    )
+    out = tmp_path / "excluded.bed"
+
+    count = write_variant_exclusion_bed(vcf, out)
+
+    assert count == 6
+    assert out.read_text().splitlines() == [
+        "chr1\t1\t2",
+        "chr1\t4\t7",
+        "chr1\t9\t11",
+        "chr1\t19\t25",
+        "chr1\t29\t41",
+        "chr1\t49\t50",
+    ]
 
 
 def test_build_population_counts_from_gzipped_vcf_with_custom_depth_field(

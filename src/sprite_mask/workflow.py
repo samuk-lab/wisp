@@ -5,6 +5,7 @@ import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+from dataclasses import replace
 from pathlib import Path
 
 from sprite_mask.bedio import extract_merged_pass_intervals, normalize_targets_bed
@@ -12,6 +13,7 @@ from sprite_mask.bedtools import (
     intersect_sort_merge,
     run_multiinter,
     sort_and_merge_bed,
+    subtract_sort_merge,
     write_single_input_multiinter,
 )
 from sprite_mask.collapse import collapse_population_counts
@@ -27,9 +29,15 @@ from sprite_mask.validation import (
     validate_jobs,
     validate_threads,
     validate_threshold,
+    validate_variants_vcf_input,
     validate_vcf_inputs,
 )
-from sprite_mask.vcf import build_population_counts_from_all_sites_vcf, validate_vcf_sample_names
+from sprite_mask.vcf import (
+    build_population_counts_from_all_sites_vcf,
+    estimate_alignment_thresholds_from_variants_vcf,
+    validate_vcf_sample_names,
+    write_variant_exclusion_bed,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +45,7 @@ logger = logging.getLogger(__name__)
 def run_workflow(config: RunConfig) -> WorkflowOutputs:
     mode = _workflow_mode(config)
     logger.info("Analysis start: validating %s workflow inputs", mode)
+    alignment_metadata: dict[str, object] = {}
 
     if isinstance(config, VcfRunConfig):
         logger.info("Analysis validation: checking threshold and VCF input paths")
@@ -49,12 +58,15 @@ def run_workflow(config: RunConfig) -> WorkflowOutputs:
         logger.info("Analysis input: reading population file %s", config.popfile_path)
         samples = read_popfile(config.popfile_path)
     else:
-        logger.info("Analysis validation: checking threshold and alignment run settings")
-        validate_threshold(config.min_dp, targets_bed=config.mask_bed)
+        logger.info("Analysis validation: checking alignment run settings")
         validate_threads(config.threads)
         validate_jobs(config.jobs)
         logger.info("Analysis input: reading sample file %s", config.samples_path)
         samples = read_samples(config.samples_path)
+        config, alignment_metadata = _resolve_alignment_thresholds(config, samples)
+        logger.info("Analysis validation: checking threshold")
+        assert config.min_dp is not None
+        validate_threshold(config.min_dp, targets_bed=config.mask_bed)
 
     _log_sample_summary(samples)
     required_tools = _required_tools(config)
@@ -67,6 +79,7 @@ def run_workflow(config: RunConfig) -> WorkflowOutputs:
         logger.info("Analysis validation: checking alignment headers against sample file")
         validate_alignment_sample_headers(samples)
 
+    assert config.min_dp is not None
     outputs = workflow_output_paths(config.out_dir, config.min_dp, config.output_prefix)
     final_paths = [
         outputs.population_count_bed_gz,
@@ -97,7 +110,12 @@ def run_workflow(config: RunConfig) -> WorkflowOutputs:
     if isinstance(config, VcfRunConfig):
         _build_from_all_sites_vcf(samples, config, generated_work_files)
     else:
-        _build_from_alignments(samples, config, generated_work_files)
+        _build_from_alignments(
+            samples,
+            config,
+            generated_work_files,
+            threshold_metadata=alignment_metadata,
+        )
 
     if not config.keep_work:
         logger.info(
@@ -112,6 +130,77 @@ def run_workflow(config: RunConfig) -> WorkflowOutputs:
     logger.info("Analysis complete: wrote %s", outputs.population_count_bed_index)
 
     return outputs
+
+
+def _resolve_alignment_thresholds(
+    config: AlignmentRunConfig,
+    samples: list[Sample],
+) -> tuple[AlignmentRunConfig, dict[str, object]]:
+    if config.variants_vcf is None:
+        if config.min_dp is None:
+            raise ValueError("--min-dp is required unless --variants-vcf is provided")
+        return config, {}
+
+    validate_variants_vcf_input(config.variants_vcf)
+
+    missing_thresholds = (
+        config.min_dp is None or config.max_dp is None or config.min_mapq is None
+    )
+    estimates = None
+    if missing_thresholds:
+        logger.info(
+            "Analysis variants VCF: estimating omitted thresholds from %s",
+            config.variants_vcf,
+        )
+        estimates = estimate_alignment_thresholds_from_variants_vcf(
+            config.variants_vcf,
+            samples,
+        )
+
+    min_dp = config.min_dp
+    max_dp = config.max_dp
+    min_mapq = config.min_mapq
+    threshold_sources = {
+        "min_dp": "manual" if min_dp is not None else "variants_vcf",
+        "max_dp": "manual" if max_dp is not None else "variants_vcf",
+        "min_mapq": "manual" if min_mapq is not None else "variants_vcf",
+    }
+
+    if estimates is not None:
+        if min_dp is None:
+            min_dp = estimates.min_dp
+        if max_dp is None:
+            max_dp = estimates.max_dp
+        if min_mapq is None:
+            min_mapq = estimates.min_mapq
+
+    if min_dp is None:
+        raise ValueError(
+            "--min-dp was not provided and could not be estimated from --variants-vcf; "
+            "provide --min-dp or use a VCF with per-sample FORMAT/DP values"
+        )
+
+    logger.info(
+        "Analysis thresholds: using min-dp=%s, max-dp=%s, min-mapq=%s",
+        min_dp,
+        "none" if max_dp is None else max_dp,
+        "none" if min_mapq is None else min_mapq,
+    )
+
+    metadata: dict[str, object] = {
+        "variants_vcf": str(config.variants_vcf),
+        "threshold_sources": threshold_sources,
+    }
+    if estimates is not None:
+        metadata["variant_vcf_threshold_estimates"] = {
+            "min_dp": estimates.min_dp,
+            "max_dp": estimates.max_dp,
+            "min_mapq": estimates.min_mapq,
+            "depth_value_count": estimates.depth_value_count,
+            "mapq_value_count": estimates.mapq_value_count,
+        }
+
+    return replace(config, min_dp=min_dp, max_dp=max_dp, min_mapq=min_mapq), metadata
 
 
 def _build_from_all_sites_vcf(
@@ -156,9 +245,19 @@ def _build_from_alignments(
     samples: list[Sample],
     config: AlignmentRunConfig,
     generated_work_files: list[Path],
+    *,
+    threshold_metadata: dict[str, object] | None = None,
 ) -> None:
+    assert config.min_dp is not None
     target_bed = _prepare_targets(config, generated_work_files)
-    passing_beds = _make_sample_pass_beds(samples, config, target_bed, generated_work_files)
+    variant_exclusion_bed = _prepare_variant_exclusions(config, generated_work_files)
+    passing_beds = _make_sample_pass_beds(
+        samples,
+        config,
+        target_bed,
+        variant_exclusion_bed,
+        generated_work_files,
+    )
 
     multiinter_tsv = config.resolved_work_dir / f"cohort.d{config.min_dp}.multiinter.tsv"
     generated_work_files.append(multiinter_tsv)
@@ -174,6 +273,7 @@ def _build_from_alignments(
         "sample_count": len(samples),
         "samples_path": str(config.samples_path),
         "mask_bed": str(config.mask_bed) if config.mask_bed is not None else None,
+        **(threshold_metadata or {}),
     }
     population_count_bed = (
         config.resolved_work_dir / f"cohort.d{config.min_dp}.population_count_quantized.bed"
@@ -228,10 +328,40 @@ def _prepare_targets(config: RunConfig, generated_work_files: list[Path]) -> Pat
     return sorted_merged
 
 
+def _prepare_variant_exclusions(
+    config: AlignmentRunConfig,
+    generated_work_files: list[Path],
+) -> Path | None:
+    if config.variants_vcf is None:
+        return None
+
+    raw_exclusions = config.resolved_work_dir / "variants_vcf.excluded.raw.bed"
+    merged_exclusions = config.resolved_work_dir / "variants_vcf.excluded.sorted.merged.bed"
+    generated_work_files.append(raw_exclusions)
+
+    logger.info(
+        "Analysis variants VCF: writing non-SNP exclusion intervals from %s",
+        config.variants_vcf,
+    )
+    exclusion_count = write_variant_exclusion_bed(config.variants_vcf, raw_exclusions)
+    if exclusion_count == 0:
+        logger.info("Analysis variants VCF: no non-SNP exclusion intervals found")
+        return None
+
+    generated_work_files.append(merged_exclusions)
+    logger.info(
+        "Analysis variants VCF: sorting and merging %d exclusion interval(s)",
+        exclusion_count,
+    )
+    sort_and_merge_bed(raw_exclusions, merged_exclusions)
+    return merged_exclusions
+
+
 def _make_sample_pass_beds(
     samples: list[Sample],
     config: AlignmentRunConfig,
     target_bed: Path | None,
+    variant_exclusion_bed: Path | None,
     generated_work_files: list[Path],
 ) -> list[Path]:
     logger.info(
@@ -242,13 +372,21 @@ def _make_sample_pass_beds(
         config.threads,
     )
     if config.jobs == 1 or len(samples) == 1:
-        results = [_make_sample_pass_bed(sample, config, target_bed) for sample in samples]
+        results = [
+            _make_sample_pass_bed(sample, config, target_bed, variant_exclusion_bed)
+            for sample in samples
+        ]
     else:
         max_workers = min(config.jobs, len(samples))
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             results = list(
                 executor.map(
-                    lambda sample: _make_sample_pass_bed(sample, config, target_bed),
+                    lambda sample: _make_sample_pass_bed(
+                        sample,
+                        config,
+                        target_bed,
+                        variant_exclusion_bed,
+                    ),
                     samples,
                 )
             )
@@ -264,6 +402,7 @@ def _make_sample_pass_bed(
     sample: Sample,
     config: AlignmentRunConfig,
     target_bed: Path | None,
+    variant_exclusion_bed: Path | None = None,
 ) -> tuple[Path, MosdepthOutputs | None, list[Path]]:
     sample_prefix = config.resolved_work_dir / f"{sample.sample_id}.d{config.min_dp}"
     generated_work_files: list[Path] = []
@@ -278,7 +417,13 @@ def _make_sample_pass_bed(
         target_copy = Path(f"{sample_prefix}.pass.targets.bed")
         shutil.copyfile(target_bed, target_copy)
         generated_work_files.append(target_copy)
-        return target_copy, None, generated_work_files
+        final_pass_bed = _exclude_variant_regions_from_sample_pass_bed(
+            sample,
+            target_copy,
+            variant_exclusion_bed,
+            generated_work_files,
+        )
+        return final_pass_bed, None, generated_work_files
 
     logger.info("Analysis sample %s: running mosdepth", sample.sample_id)
     mosdepth_outputs = run_mosdepth(sample, config)
@@ -299,14 +444,45 @@ def _make_sample_pass_bed(
 
     if target_bed is None:
         logger.info("Analysis sample %s: finished pass interval BED", sample.sample_id)
-        return merged_pass_bed, mosdepth_outputs, generated_work_files
+        final_pass_bed = _exclude_variant_regions_from_sample_pass_bed(
+            sample,
+            merged_pass_bed,
+            variant_exclusion_bed,
+            generated_work_files,
+        )
+        return final_pass_bed, mosdepth_outputs, generated_work_files
 
     clipped_pass_bed = Path(f"{sample_prefix}.pass.targets.bed")
     generated_work_files.append(clipped_pass_bed)
     logger.info("Analysis sample %s: clipping pass intervals to targets", sample.sample_id)
     intersect_sort_merge(merged_pass_bed, target_bed, clipped_pass_bed)
     logger.info("Analysis sample %s: finished targeted pass interval BED", sample.sample_id)
-    return clipped_pass_bed, mosdepth_outputs, generated_work_files
+    final_pass_bed = _exclude_variant_regions_from_sample_pass_bed(
+        sample,
+        clipped_pass_bed,
+        variant_exclusion_bed,
+        generated_work_files,
+    )
+    return final_pass_bed, mosdepth_outputs, generated_work_files
+
+
+def _exclude_variant_regions_from_sample_pass_bed(
+    sample: Sample,
+    pass_bed: Path,
+    variant_exclusion_bed: Path | None,
+    generated_work_files: list[Path],
+) -> Path:
+    if variant_exclusion_bed is None:
+        return pass_bed
+
+    excluded_pass_bed = Path(f"{pass_bed.with_suffix('')}.variants.bed")
+    generated_work_files.append(excluded_pass_bed)
+    logger.info(
+        "Analysis sample %s: removing variants-only VCF exclusion intervals",
+        sample.sample_id,
+    )
+    subtract_sort_merge(pass_bed, variant_exclusion_bed, excluded_pass_bed)
+    return excluded_pass_bed
 
 
 def _sort_bgzip_tabix_bed(in_bed: Path, out_bed_gz: Path) -> None:

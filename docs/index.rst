@@ -55,7 +55,9 @@ but works equally well on its own. Source code is on
 The tool produces the same ``sprite.bed.gz`` output from two input modes:
 
 * BAM/CRAM alignments, using ``mosdepth`` to quantize each sample and
-  ``bedtools multiinter`` to combine samples.
+  ``bedtools multiinter`` to combine samples. In this mode, an optional
+  variants-only VCF can estimate omitted thresholds and exclude non-SNP
+  variant spans from the final sparse mask.
 * A prefiltered all-sites VCF, using per-sample ``FORMAT/DP`` values directly.
 
 The output is bgzip-compressed and tabix-indexed. Large cohorts and large

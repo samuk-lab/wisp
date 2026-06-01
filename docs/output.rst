@@ -60,6 +60,9 @@ The ``#sprite_mask_metadata`` line is JSON. It includes:
 * ``population_sample_counts``
 * input paths such as ``samples_path``, ``popfile``, ``all_sites_vcf``, and
   ``mask_bed`` when applicable
+* ``variants_vcf``, ``threshold_sources``, and
+  ``variant_vcf_threshold_estimates`` when ``--variants-vcf`` is used in
+  BAM/CRAM mode
 
 Sparse interpretation
 =====================
@@ -67,6 +70,11 @@ Sparse interpretation
 The mask is sparse by design. A missing interval means zero passing samples
 in every population — not that the interval was skipped or that counts are
 unknown.
+
+When ``--variants-vcf`` excludes an indel, structural variant, breakend, or
+multi-nucleotide polymorphism span in BAM/CRAM mode, that span is removed from
+all sample pass BEDs. In the final sparse BED, this is represented the same
+way as any other all-zero region: no data row is written for the span.
 
 Intermediate files
 ==================
@@ -84,7 +92,14 @@ When ``--keep-work`` is set, BAM/CRAM mode retains files like:
    <sample>.d<min-dp>.mosdepth.stderr.log
    <sample>.d<min-dp>.pass.bed
    <sample>.d<min-dp>.pass.targets.bed
+   variants_vcf.excluded.raw.bed
+   variants_vcf.excluded.sorted.merged.bed
+   <sample>.d<min-dp>.pass.variants.bed
+   <sample>.d<min-dp>.pass.targets.variants.bed
    cohort.d<min-dp>.multiinter.tsv
    cohort.d<min-dp>.population_count_quantized.bed
+
+The ``variants_vcf.*`` and ``*.variants.bed`` files are present only when
+``--variants-vcf`` finds non-SNP exclusion intervals.
 
 VCF mode retains the uncompressed population count mask in the work directory.

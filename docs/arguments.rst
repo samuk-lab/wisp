@@ -15,13 +15,15 @@ Commands
     Build a population count mask from a prefiltered all-sites VCF with
     per-sample ``FORMAT/DP`` values.
 
-Required for every run
-======================
+Core arguments
+==============
 
 **--min-dp INTEGER**
     Minimum depth for a sample to pass a site. Must be non-negative.
-    ``--min-dp 0`` requires ``--mask`` because no genome-wide coordinate
-    file is supplied.
+    Required unless ``from-alignments`` is run with ``--variants-vcf`` and
+    the VCF contains per-sample ``FORMAT/DP`` values for threshold estimation.
+    ``--min-dp 0`` requires ``--mask`` because no genome-wide coordinate file
+    is supplied.
 
 **--out PATH**
     Output directory for the final ``sprite.bed.gz`` and tabix index.
@@ -32,6 +34,17 @@ Input-specific arguments
 **--samples PATH**
     Sample metadata TSV for BAM/CRAM mode. Must provide sample ID,
     population, and alignment path columns. See :doc:`inputs`.
+
+**--variants-vcf PATH**
+    Optional variants-only VCF for BAM/CRAM mode. When present, omitted
+    ``--min-dp`` and ``--max-dp`` values are estimated from positive
+    per-sample ``FORMAT/DP`` values among selected samples and omitted
+    ``--min-mapq`` is estimated from ``INFO/MQ``. Manual threshold flags
+    override these estimates.
+    Indels, symbolic structural variants, breakends, and multi-nucleotide
+    polymorphisms are converted to exclusion intervals and removed from all
+    sample pass BEDs, so those spans are omitted from the sparse final BED
+    and interpreted as zero passing samples in every population.
 
 **--all-sites-vcf PATH**
     All-sites VCF for VCF mode. Must include per-sample ``FORMAT/DP``
@@ -82,10 +95,12 @@ BAM/CRAM mode options
     is ``--jobs × --threads``.
 
 **--min-mapq INTEGER**
-    Minimum read mapping quality.
+    Minimum read mapping quality. In BAM/CRAM mode, defaults from
+    ``--variants-vcf`` when available.
 
 **--max-dp INTEGER**
-    Maximum depth to pass a site.
+    Maximum depth to pass a site. In BAM/CRAM mode, defaults from
+    ``--variants-vcf`` when available.
 
 **--exclude-flag INTEGER**
     SAM FLAG bits to exclude reads.
@@ -108,6 +123,7 @@ BAM/CRAM mode:
    sprite from-alignments \
      --samples tests/test_data/1000g_5sample_chr20_smoke/samples.tsv \
      --min-dp 10 \
+     --variants-vcf validation/cohort.variants.vcf.gz \
      --mask tests/test_data/1000g_5sample_chr20_smoke/targets.bed \
      --out results \
      --work work \

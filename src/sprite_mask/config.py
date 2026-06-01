@@ -7,12 +7,13 @@ from pathlib import Path
 @dataclass(frozen=True)
 class AlignmentRunConfig:
     samples_path: Path
-    min_dp: int
+    min_dp: int | None
     out_dir: Path
     work_dir: Path | None = None
     threads: int = 1
     jobs: int = 1
     mask_bed: Path | None = None
+    variants_vcf: Path | None = None
     min_mapq: int | None = None
     max_dp: int | None = None
     exclude_flag: int | None = None

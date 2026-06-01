@@ -35,6 +35,13 @@ the passing intervals, optionally clips them to a mask BED, intersects all
 sample pass BEDs with ``bedtools multiinter``, and assembles them into a
 population count mask.
 
+An optional variants-only VCF can modify this alignment workflow. ``sprite``
+can estimate omitted depth and mapping-quality thresholds from the VCF, and
+it subtracts indel, structural-variant, breakend, and multi-nucleotide
+polymorphism spans from every sample pass BED. Because the final BED is
+sparse, these excluded spans are represented as absent intervals, meaning
+zero passing samples in every population.
+
 All-sites VCF mode
 ------------------
 

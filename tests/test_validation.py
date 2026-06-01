@@ -14,6 +14,7 @@ from sprite_mask.validation import (
     validate_jobs,
     validate_threads,
     validate_threshold,
+    validate_variants_vcf_input,
 )
 
 
@@ -38,6 +39,20 @@ def test_validate_threads_and_jobs_reject_values_below_one() -> None:
 
     validate_threads(1)
     validate_jobs(1)
+
+
+def test_validate_variants_vcf_input_rejects_missing_or_directory(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="--variants-vcf does not exist"):
+        validate_variants_vcf_input(tmp_path / "missing.vcf")
+
+    vcf_dir = tmp_path / "variants_dir"
+    vcf_dir.mkdir()
+    with pytest.raises(ValueError, match="--variants-vcf is a directory"):
+        validate_variants_vcf_input(vcf_dir)
+
+    variants_vcf = tmp_path / "variants.vcf"
+    variants_vcf.write_text("vcf")
+    validate_variants_vcf_input(variants_vcf)
 
 
 def test_validate_alignment_sample_headers_accepts_matching_read_group_samples(

@@ -41,6 +41,13 @@ def validate_vcf_inputs(all_sites_vcf: Path, popfile_path: Path) -> None:
         raise ValueError(f"--popfile is a directory: {popfile_path}")
 
 
+def validate_variants_vcf_input(variants_vcf: Path) -> None:
+    if not variants_vcf.exists():
+        raise ValueError(f"--variants-vcf does not exist: {variants_vcf}")
+    if variants_vcf.is_dir():
+        raise ValueError(f"--variants-vcf is a directory: {variants_vcf}")
+
+
 def validate_alignment_sample_headers(samples: list[Sample]) -> None:
     for sample in samples:
         if sample.alignment is None:

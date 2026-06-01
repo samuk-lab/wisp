@@ -18,7 +18,9 @@ from sprite_mask.workflow import (
     _make_sample_pass_bed,
     _make_sample_pass_beds,
     _prepare_targets,
+    _prepare_variant_exclusions,
     _required_tools,
+    _resolve_alignment_thresholds,
     _sort_bgzip_tabix_bed,
     run_workflow,
 )
@@ -121,7 +123,10 @@ def test_run_workflow_alignment_mode_dispatches_and_cleans_work_files(
         samples: list[Sample],
         config_arg: AlignmentRunConfig,
         generated_work_files: list[Path],
+        *,
+        threshold_metadata: dict[str, object] | None = None,
     ) -> None:
+        assert threshold_metadata == {}
         calls.append((samples, config_arg))
         generated = config_arg.resolved_work_dir / "generated.tmp"
         generated.write_text("generated")
@@ -137,6 +142,53 @@ def test_run_workflow_alignment_mode_dispatches_and_cleans_work_files(
     assert outputs.population_count_bed_gz == tmp_path / "out" / "sprite.bed.gz"
     assert calls == [([sample], config)]
     assert not config.resolved_work_dir.exists()
+
+
+def test_resolve_alignment_thresholds_requires_min_dp_without_variants_vcf(
+    tmp_path: Path,
+) -> None:
+    config = AlignmentRunConfig(
+        samples_path=tmp_path / "samples.tsv",
+        min_dp=None,
+        out_dir=tmp_path / "out",
+    )
+
+    with pytest.raises(ValueError, match="required unless --variants-vcf"):
+        _resolve_alignment_thresholds(config, [Sample("s1", "popA", tmp_path / "s1.bam")])
+
+
+def test_resolve_alignment_thresholds_uses_variants_vcf_defaults_and_manual_overrides(
+    tmp_path: Path,
+) -> None:
+    variants_vcf = tmp_path / "variants.vcf"
+    variants_vcf.write_text(
+        "##fileformat=VCFv4.2\n"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\ts1\n"
+        "chr1\t1\t.\tA\tC\t.\t.\tMQ=37.9\tGT:DP\t0/1:8\n"
+        "chr1\t2\t.\tG\tT\t.\t.\tMQ=50\tGT:DP\t0/1:14\n"
+    )
+    config = AlignmentRunConfig(
+        samples_path=tmp_path / "samples.tsv",
+        min_dp=None,
+        out_dir=tmp_path / "out",
+        variants_vcf=variants_vcf,
+        min_mapq=20,
+    )
+
+    resolved, metadata = _resolve_alignment_thresholds(
+        config,
+        [Sample("s1", "popA", tmp_path / "s1.bam")],
+    )
+
+    assert resolved.min_dp == 8
+    assert resolved.max_dp == 14
+    assert resolved.min_mapq == 20
+    assert metadata["variants_vcf"] == str(variants_vcf)
+    assert metadata["threshold_sources"] == {
+        "min_dp": "variants_vcf",
+        "max_dp": "variants_vcf",
+        "min_mapq": "manual",
+    }
 
 
 def test_prepare_targets_normalizes_sorts_and_tracks_outputs(
@@ -195,6 +247,43 @@ def test_prepare_targets_without_targets_returns_none(tmp_path: Path) -> None:
         is None
     )
     assert generated == []
+
+
+def test_prepare_variant_exclusions_writes_and_merges_non_snp_regions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    variants_vcf = tmp_path / "variants.vcf"
+    variants_vcf.write_text(
+        "##fileformat=VCFv4.2\n"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+        "chr1\t1\t.\tA\tC\t.\t.\t.\n"
+        "chr1\t5\t.\tAC\tA\t.\t.\t.\n"
+    )
+    config = AlignmentRunConfig(
+        samples_path=tmp_path / "samples.tsv",
+        min_dp=10,
+        out_dir=tmp_path / "out",
+        work_dir=tmp_path / "work",
+        variants_vcf=variants_vcf,
+    )
+    config.resolved_work_dir.mkdir(parents=True)
+
+    def fake_sort(in_bed: Path, out_bed: Path) -> Path:
+        out_bed.write_text(in_bed.read_text())
+        return out_bed
+
+    monkeypatch.setattr("sprite_mask.workflow.sort_and_merge_bed", fake_sort)
+    generated: list[Path] = []
+
+    exclusions = _prepare_variant_exclusions(config, generated)
+
+    raw = tmp_path / "work" / "variants_vcf.excluded.raw.bed"
+    merged = tmp_path / "work" / "variants_vcf.excluded.sorted.merged.bed"
+    assert exclusions == merged
+    assert raw.read_text() == "chr1\t4\t6\n"
+    assert merged.read_text() == raw.read_text()
+    assert generated == [raw, merged]
 
 
 def test_make_sample_pass_bed_threshold_zero_copies_target_bed(tmp_path: Path) -> None:
@@ -322,6 +411,51 @@ def test_make_sample_pass_bed_with_targets_clips_merged_pass_bed(
     assert generated[-2:] == [merged_pass_bed, clipped_pass_bed]
 
 
+def test_make_sample_pass_bed_removes_variant_exclusion_regions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = AlignmentRunConfig(
+        samples_path=tmp_path / "samples.tsv",
+        min_dp=10,
+        out_dir=tmp_path / "out",
+        work_dir=tmp_path / "work",
+    )
+    config.resolved_work_dir.mkdir(parents=True)
+    outputs = _mosdepth_outputs(tmp_path / "work" / "s1.d10")
+    variant_exclusions = tmp_path / "excluded.bed"
+    variant_exclusions.write_text("chr1\t12\t14\n")
+    calls: list[tuple[Path, Path, Path]] = []
+
+    monkeypatch.setattr("sprite_mask.workflow.run_mosdepth", lambda _sample, _config: outputs)
+    monkeypatch.setattr(
+        "sprite_mask.workflow.extract_merged_pass_intervals",
+        lambda _quantized, out_bed: out_bed.write_text("chr1\t10\t20\n") or out_bed,
+    )
+
+    def fake_subtract(pass_bed: Path, excluded_bed: Path, out_bed: Path) -> Path:
+        calls.append((pass_bed, excluded_bed, out_bed))
+        out_bed.write_text("chr1\t10\t12\nchr1\t14\t20\n")
+        return out_bed
+
+    monkeypatch.setattr("sprite_mask.workflow.subtract_sort_merge", fake_subtract)
+
+    pass_bed, returned_outputs, generated = _make_sample_pass_bed(
+        Sample("s1", "popA", tmp_path / "s1.bam"),
+        config,
+        None,
+        variant_exclusions,
+    )
+
+    merged_pass_bed = tmp_path / "work" / "s1.d10.pass.bed"
+    excluded_pass_bed = tmp_path / "work" / "s1.d10.pass.variants.bed"
+    assert pass_bed == excluded_pass_bed
+    assert returned_outputs == outputs
+    assert pass_bed.read_text() == "chr1\t10\t12\nchr1\t14\t20\n"
+    assert calls == [(merged_pass_bed, variant_exclusions, excluded_pass_bed)]
+    assert generated[-2:] == [merged_pass_bed, excluded_pass_bed]
+
+
 def test_make_sample_pass_beds_uses_parallel_jobs_and_tracks_work_files(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -342,6 +476,7 @@ def test_make_sample_pass_beds_uses_parallel_jobs_and_tracks_work_files(
         sample: Sample,
         _config: AlignmentRunConfig,
         _target_bed: Path | None,
+        _variant_exclusion_bed: Path | None,
     ) -> tuple[Path, None, list[Path]]:
         pass_bed = tmp_path / f"{sample.sample_id}.pass.bed"
         sample_log = tmp_path / f"{sample.sample_id}.log"
@@ -350,7 +485,7 @@ def test_make_sample_pass_beds_uses_parallel_jobs_and_tracks_work_files(
     monkeypatch.setattr("sprite_mask.workflow._make_sample_pass_bed", fake_make_sample_pass_bed)
     generated: list[Path] = []
 
-    pass_beds = _make_sample_pass_beds(samples, config, None, generated)
+    pass_beds = _make_sample_pass_beds(samples, config, None, None, generated)
 
     assert pass_beds == [tmp_path / "s1.pass.bed", tmp_path / "s2.pass.bed"]
     assert generated == [tmp_path / "s1.log", tmp_path / "s2.log"]
@@ -377,13 +512,14 @@ def test_make_sample_pass_beds_uses_sequential_path_for_one_job(
         sample: Sample,
         _config: AlignmentRunConfig,
         _target_bed: Path | None,
+        _variant_exclusion_bed: Path | None,
     ) -> tuple[Path, None, list[Path]]:
         visited.append(sample.sample_id)
         return tmp_path / f"{sample.sample_id}.pass.bed", None, []
 
     monkeypatch.setattr("sprite_mask.workflow._make_sample_pass_bed", fake_make_sample_pass_bed)
 
-    pass_beds = _make_sample_pass_beds(samples, config, None, [])
+    pass_beds = _make_sample_pass_beds(samples, config, None, None, [])
 
     assert visited == ["s1", "s2"]
     assert pass_beds == [tmp_path / "s1.pass.bed", tmp_path / "s2.pass.bed"]
@@ -410,7 +546,7 @@ def test_build_from_alignments_uses_single_input_multiinter_for_one_sample(
     )
     monkeypatch.setattr(
         "sprite_mask.workflow._make_sample_pass_beds",
-        lambda _samples, _config, _target_bed, _generated: [pass_bed],
+        lambda _samples, _config, _target_bed, _variant_exclusion_bed, _generated: [pass_bed],
     )
 
     def fake_single(pass_bed_arg: Path, name: str, out_tsv: Path) -> Path:
@@ -481,7 +617,7 @@ def test_build_from_alignments_uses_bedtools_multiinter_for_multiple_samples(
     )
     monkeypatch.setattr(
         "sprite_mask.workflow._make_sample_pass_beds",
-        lambda _samples, _config, _target_bed, _generated: pass_beds,
+        lambda _samples, _config, _target_bed, _variant_exclusion_bed, _generated: pass_beds,
     )
 
     def fake_multi(pass_beds_arg: Sequence[Path], names: Sequence[str], out_tsv: Path) -> Path:

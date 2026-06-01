@@ -67,6 +67,7 @@ def _cmd_from_alignments(args: argparse.Namespace) -> int:
         threads=args.threads,
         jobs=args.jobs,
         mask_bed=Path(args.mask) if args.mask else None,
+        variants_vcf=Path(args.variants_vcf) if args.variants_vcf else None,
         min_mapq=args.min_mapq,
         max_dp=args.max_dp,
         exclude_flag=args.exclude_flag,
@@ -117,8 +118,13 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _add_common_run_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--min-dp", required=True, type=int, help="minimum depth to pass a site")
+def _add_common_run_args(p: argparse.ArgumentParser, *, min_dp_required: bool = True) -> None:
+    p.add_argument(
+        "--min-dp",
+        required=min_dp_required,
+        type=int,
+        help="minimum depth to pass a site",
+    )
     p.add_argument("--out", required=True, help="output directory")
     p.add_argument(
         "--output-prefix",
@@ -149,7 +155,7 @@ def _build_from_alignments_parser(subparsers: argparse._SubParsersAction) -> Non
         required=True,
         help="sample metadata TSV (sample_id, population, alignment)",
     )
-    _add_common_run_args(p)
+    _add_common_run_args(p, min_dp_required=False)
     p.add_argument(
         "--threads",
         type=int,
@@ -162,8 +168,23 @@ def _build_from_alignments_parser(subparsers: argparse._SubParsersAction) -> Non
         default=1,
         help="samples to process concurrently; total parallelism = --jobs × --threads",
     )
-    p.add_argument("--min-mapq", type=int, help="minimum read mapping quality")
-    p.add_argument("--max-dp", type=int, help="maximum depth to pass a site")
+    p.add_argument(
+        "--variants-vcf",
+        help=(
+            "variants-only VCF used to estimate omitted depth/MAPQ thresholds "
+            "and mask non-SNP variant spans"
+        ),
+    )
+    p.add_argument(
+        "--min-mapq",
+        type=int,
+        help="minimum read mapping quality; defaults from --variants-vcf when available",
+    )
+    p.add_argument(
+        "--max-dp",
+        type=int,
+        help="maximum depth to pass a site; defaults from --variants-vcf when available",
+    )
     p.add_argument("--exclude-flag", type=int, help="SAM FLAG bits to exclude reads")
     p.add_argument("--reference", help="FASTA reference for CRAM inputs")
     p.add_argument(

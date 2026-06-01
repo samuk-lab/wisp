@@ -31,6 +31,18 @@ def intersect_sort_merge(a_bed: Path, b_bed: Path, out_bed: Path) -> Path:
     return out_bed
 
 
+def subtract_sort_merge(a_bed: Path, b_bed: Path, out_bed: Path) -> Path:
+    run_pipeline(
+        [
+            ["bedtools", "subtract", "-a", str(a_bed), "-b", str(b_bed)],
+            ["bedtools", "sort", "-i", "-"],
+            ["bedtools", "merge", "-i", "-"],
+        ],
+        out_bed,
+    )
+    return out_bed
+
+
 def run_multiinter(pass_beds: Sequence[Path], names: Sequence[str], out_tsv: Path) -> Path:
     command = build_multiinter_command(pass_beds, names)
     out_tsv.parent.mkdir(parents=True, exist_ok=True)

@@ -66,6 +66,43 @@ been filtered as desired. Duplicate ``CHROM:POS`` records are merged with OR
 semantics per sample, but duplicates must be contiguous, as in a
 coordinate-sorted VCF.
 
+Variants-only VCF for BAM/CRAM mode
+===================================
+
+``--variants-vcf`` is optional in BAM/CRAM mode. It should point to a
+coordinate-sorted variants-only VCF for the same samples and reference
+coordinate system as the alignments. When sample columns are present, every
+sample ID in ``--samples`` must appear in the VCF; extra VCF samples are
+ignored for threshold estimation.
+
+``sprite`` uses this VCF in two ways.
+
+Threshold estimation
+--------------------
+
+If ``--min-dp`` or ``--max-dp`` is omitted, ``sprite`` estimates it from
+positive per-sample ``FORMAT/DP`` values at variant records. ``--min-dp``
+uses the smallest observed positive DP and ``--max-dp`` uses the largest
+observed positive DP. If ``--min-mapq`` is omitted, ``sprite`` estimates it
+from the smallest ``INFO/MQ`` value, rounded down to an integer.
+
+Any threshold supplied manually on the command line takes precedence over
+the VCF-derived estimate. If ``--min-dp`` is omitted and the VCF has no usable
+``FORMAT/DP`` values, the run is rejected.
+
+Variant exclusions
+------------------
+
+The same VCF is scanned for variant classes that should not contribute
+callable single-base denominators: indels, symbolic structural variants,
+breakends, and multi-nucleotide polymorphisms. SNP-only records are retained.
+
+Exclusion spans are emitted in BED coordinates. For symbolic structural
+variants, ``INFO/END`` is preferred when present; otherwise ``SVLEN`` is used
+when available. For ordinary sequence alleles, the reference allele length is
+used. The resulting intervals are sorted, merged, and subtracted from every
+sample pass BED before population counts are built.
+
 Mask BED
 ========
 
