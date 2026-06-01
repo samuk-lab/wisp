@@ -17,7 +17,7 @@ class AlignmentRunConfig:
     max_dp: int | None = None
     exclude_flag: int | None = None
     reference: Path | None = None
-    strict_depth: bool = False
+    fast_mode: bool = False
     keep_work: bool = False
     force: bool = False
     dry_run: bool = False

@@ -1,7 +1,6 @@
 .DS_Store
 
 .git.broken
-.claude
 src/sprite_mask/__pycache__/
 __pycache__/
 *.py[cod]
@@ -17,6 +16,8 @@ dev/
 build/
 dist/
 *.egg-info/
+.cl*
+.cod*
 docs/_build/
 validation/
 
@@ -37,3 +38,5 @@ tests/test_data/**/ref_cache/
 # conflicts them on Windows.
 tests/test_data/1000g_10sample_highcov_subset/1000g_10samples_highcov.vcf.gz
 tests/test_data/1000g_10sample_highcov_subset/1000g_10samples_highcov.vcf.gz.tbi
+
+uv.*

@@ -143,7 +143,7 @@ def test_main_builds_alignment_run_config(
             "1796",
             "--reference",
             str(tmp_path / "ref.fa"),
-            "--strict-depth",
+            "--fast-mode",
             "--keep-work",
             "--force",
         ]
@@ -160,7 +160,7 @@ def test_main_builds_alignment_run_config(
     assert seen_config.min_mapq == 20
     assert seen_config.exclude_flag == 1796
     assert seen_config.reference == tmp_path / "ref.fa"
-    assert seen_config.strict_depth is True
+    assert seen_config.fast_mode is True
     assert seen_config.keep_work is True
     assert seen_config.force is True
 

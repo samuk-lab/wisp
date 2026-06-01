@@ -11,7 +11,7 @@ from sprite_mask.mosdepth import build_mosdepth_command
 from sprite_mask.workflow import _required_tools, workflow_output_paths
 
 
-def test_build_mosdepth_command_defaults_to_fast_mode(tmp_path: Path) -> None:
+def test_build_mosdepth_command_default_omits_fast_mode(tmp_path: Path) -> None:
     sample = Sample("s1", "popA", tmp_path / "s1.bam")
     config = AlignmentRunConfig(
         samples_path=tmp_path / "samples.tsv",
@@ -32,7 +32,6 @@ def test_build_mosdepth_command_defaults_to_fast_mode(tmp_path: Path) -> None:
         "--no-per-base",
         "--quantize",
         "0:30:",
-        "--fast-mode",
         "--mapq",
         "20",
         "--flag",
@@ -44,18 +43,18 @@ def test_build_mosdepth_command_defaults_to_fast_mode(tmp_path: Path) -> None:
     ]
 
 
-def test_build_mosdepth_command_strict_depth_omits_fast_mode(tmp_path: Path) -> None:
+def test_build_mosdepth_command_fast_mode_adds_fast_mode(tmp_path: Path) -> None:
     sample = Sample("s1", "popA", tmp_path / "s1.bam")
     config = AlignmentRunConfig(
         samples_path=tmp_path / "samples.tsv",
         min_dp=30,
         out_dir=tmp_path / "out",
-        strict_depth=True,
+        fast_mode=True,
     )
 
     command = build_mosdepth_command(sample, config, tmp_path / "work" / "s1.d30")
 
-    assert "--fast-mode" not in command
+    assert "--fast-mode" in command
 
 
 def test_build_mosdepth_command_max_dp_uses_three_bin_quantize(tmp_path: Path) -> None:

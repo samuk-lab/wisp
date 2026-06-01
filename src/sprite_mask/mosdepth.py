@@ -68,7 +68,7 @@ def build_mosdepth_command(sample: Sample, config: AlignmentRunConfig, prefix: P
         "--quantize",
         quantize,
     ]
-    if not config.strict_depth:
+    if config.fast_mode:
         command.append("--fast-mode")
     if config.min_mapq is not None:
         command.extend(["--mapq", str(config.min_mapq)])
