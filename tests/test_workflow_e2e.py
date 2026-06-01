@@ -73,6 +73,87 @@ INTEGRATION_FIXTURE = FixtureCase(
         ("chr20", 9_999_999, 10_049_999),
     ),
     expected_sample_counts={
+        "HG00096": 27_521,
+        "HG00097": 20_585,
+        "HG00099": 58_048,
+        "HG00100": 14_469,
+        "HG00101": 28_605,
+        "HG00102": 18_908,
+        "HG00103": 22_460,
+        "HG00105": 8_039,
+        "HG00106": 47_679,
+        "HG00107": 22_583,
+        "NA18486": 21_089,
+        "NA18488": 10_702,
+        "NA18489": 190_337,
+        "NA18498": 8_661,
+        "NA18499": 24_514,
+        "NA18501": 12_409,
+        "NA18502": 9_021,
+        "NA18504": 12_821,
+        "NA18505": 50_961,
+        "NA18507": 24_492,
+    },
+    expected_sample_summary={
+        1: 36_250,
+        2: 49_967,
+        3: 42_286,
+        4: 28_271,
+        5: 17_221,
+        6: 9_096,
+        7: 4_991,
+        8: 3_030,
+        9: 1_822,
+        10: 1_134,
+        11: 693,
+        12: 439,
+        13: 291,
+        14: 171,
+        15: 96,
+        16: 76,
+        17: 178,
+        18: 129,
+        19: 130,
+        20: 32,
+    },
+    expected_population_summary={
+        "GBR": {
+            0: 57_972,
+            1: 64_395,
+            2: 40_867,
+            3: 19_713,
+            4: 7_959,
+            5: 2_947,
+            6: 1_177,
+            7: 617,
+            8: 299,
+            9: 285,
+            10: 72,
+        },
+        "YRI": {
+            0: 2_579,
+            1: 90_131,
+            2: 62_499,
+            3: 25_836,
+            4: 9_429,
+            5: 3_091,
+            6: 1_252,
+            7: 789,
+            8: 232,
+            9: 342,
+            10: 123,
+        },
+    },
+    expected_population_counts={"GBR": 10, "YRI": 10},
+    min_count_rows=30_000,
+)
+
+
+FAST_MODE_INTEGRATION_FIXTURE = FixtureCase(
+    name="1000g_20sample_highcov_4chrom_subset",
+    fixture=REPO_ROOT / "tests" / "test_data" / "1000g_20sample_highcov_4chrom_subset",
+    target_intervals=INTEGRATION_FIXTURE.target_intervals,
+    expected_sample_counts={
         "HG00096": 29_770,
         "HG00097": 22_129,
         "HG00099": 61_681,
@@ -144,8 +225,8 @@ INTEGRATION_FIXTURE = FixtureCase(
             10: 177,
         },
     },
-    expected_population_counts={"GBR": 10, "YRI": 10},
-    min_count_rows=30_000,
+    expected_population_counts=INTEGRATION_FIXTURE.expected_population_counts,
+    min_count_rows=INTEGRATION_FIXTURE.min_count_rows,
 )
 
 
@@ -154,6 +235,28 @@ def test_cli_workflow_multichromosome_fixture_outputs_expected_counts(tmp_path: 
     require_fixture_and_tools(fixture_case)
     out_dir, work_dir = run_sprite_mask(tmp_path, fixture_case, keep_work=True)
 
+    assert_population_count_output_matches_fixture(out_dir, fixture_case)
+    assert_expected_work_files_exist(work_dir, fixture_case)
+
+
+def test_cli_workflow_fast_mode_preserves_previous_fixture_counts(tmp_path: Path) -> None:
+    fixture_case = FAST_MODE_INTEGRATION_FIXTURE
+    require_fixture_and_tools(fixture_case)
+    out_dir, work_dir = run_sprite_mask(
+        tmp_path,
+        fixture_case,
+        keep_work=True,
+        fast_mode=True,
+    )
+
+    assert_population_count_output_matches_fixture(out_dir, fixture_case)
+    assert_expected_work_files_exist(work_dir, fixture_case)
+
+
+def assert_population_count_output_matches_fixture(
+    out_dir: Path,
+    fixture_case: FixtureCase,
+) -> None:
     population_count_bed_gz = out_dir / "sprite.bed.gz"
     population_count_bed_index = Path(f"{population_count_bed_gz}.tbi")
 
@@ -188,8 +291,6 @@ def test_cli_workflow_multichromosome_fixture_outputs_expected_counts(tmp_path: 
         expected_covered_sites=expected_nonzero_sites,
         expected_target_sites=fixture_case.target_sites,
     )
-
-    assert_expected_work_files_exist(work_dir, fixture_case)
 
 
 def test_cli_workflow_smoke_fixture_writes_only_indexed_population_bed(tmp_path: Path) -> None:
@@ -231,6 +332,7 @@ def run_sprite_mask(
     keep_work: bool,
     threads: int = 2,
     jobs: int = 2,
+    fast_mode: bool = False,
 ) -> tuple[Path, Path]:
     out_dir = tmp_path / "results"
     work_dir = tmp_path / "work"
@@ -254,6 +356,8 @@ def run_sprite_mask(
         "--jobs",
         str(jobs),
     ]
+    if fast_mode:
+        command.append("--fast-mode")
     if keep_work:
         command.append("--keep-work")
 
