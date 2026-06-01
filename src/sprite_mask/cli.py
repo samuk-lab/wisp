@@ -169,7 +169,10 @@ def _build_from_alignments_parser(subparsers: argparse._SubParsersAction) -> Non
     p.add_argument(
         "--fast-mode",
         action="store_true",
-        help="use mosdepth fast mode instead of precise per-base depth counting",
+        help=(
+            "opt into mosdepth --fast-mode; strict per-base depth counting "
+            "is the default"
+        ),
     )
     p.set_defaults(subcommand=_cmd_from_alignments)
 
