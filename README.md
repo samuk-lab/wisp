@@ -1,4 +1,4 @@
-`wisp`<img src="https://raw.githubusercontent.com/samuk-lab/wisp/master/docs/images/wisp_logo.png" align="right" width="20%">
+`wisp`<img src="https://raw.githubusercontent.com/samuk-lab/wisp/master/docs/images/wisp_logo.png" align="right" width="21%">
 ====================
 
 `wisp` builds population count masks from BAM/CRAM alignments or all-sites VCFs. It is a companion tool for [pixy](https://github.com/ksamuk/pixy/), though it works equally well on its own.
